@@ -106,9 +106,7 @@ fun AdminScreen() {
 
 @Composable
 fun AdminHomeScreen(onNavigateToGames: () -> Unit, onNavigateToSchedules: () -> Unit, onNavigateToPayments: () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("الإدارة والمدربون", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 24.dp, top = 32.dp))
-
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp)) {
         ElevatedCard(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clickable { onNavigateToGames() },
             elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)

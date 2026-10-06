@@ -1,5 +1,6 @@
 package com.example.simplecalc
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -186,7 +188,7 @@ fun MembersListScreen(onMemberClick: (Member) -> Unit) {
                 onValueChange = { searchQuery = it },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
                 placeholder = { Text("البحث بالاسم أو رقم الهاتف") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = "بحث") },
                 singleLine = true
@@ -417,7 +419,7 @@ fun AddMemberDialog(
         onDismissRequest = onDismiss,
         title = { Text("إضافة عضو جديد") },
         text = {
-            Column {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 if (showError) {
                     Text(
                         text = "الاسم ورقم الهاتف مطلوبان.",
@@ -444,22 +446,28 @@ fun AddMemberDialog(
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
                 )
-                Text("الجنس", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
+                Text("الجنس", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    RadioButton(
-                        selected = gender == "ذكر",
-                        onClick = { gender = "ذكر" }
-                    )
-                    Text("ذكر", modifier = Modifier.clickable { gender = "ذكر" }.padding(end = 16.dp))
-                    
-                    RadioButton(
-                        selected = gender == "أنثى",
-                        onClick = { gender = "أنثى" }
-                    )
-                    Text("أنثى", modifier = Modifier.clickable { gender = "أنثى" })
+                    val genders = listOf("ذكر", "أنثى")
+                    genders.forEach { g ->
+                        val isSelected = gender == g
+                        OutlinedButton(
+                            onClick = { gender = g },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                                contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                            ),
+                            border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+                        ) {
+                            Text(g)
+                        }
+                    }
                 }
                 DatePickerField(
                     value = dob,
@@ -476,7 +484,7 @@ fun AddMemberDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            Button(
                 onClick = {
                     if (name.isBlank() || phone.isBlank()) {
                         showError = true
@@ -513,7 +521,7 @@ fun EditMemberDialog(
         onDismissRequest = onDismiss,
         title = { Text("تعديل العضو") },
         text = {
-            Column {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 if (showError) {
                     Text(
                         text = "الاسم ورقم الهاتف مطلوبان.",
@@ -540,15 +548,29 @@ fun EditMemberDialog(
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
                 )
-                OutlinedTextField(
-                    value = gender,
-                    onValueChange = { gender = it },
-                    label = { Text("الجنس") },
-                    singleLine = true,
+                Text("الجنس", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                )
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val genders = listOf("ذكر", "أنثى")
+                    genders.forEach { g ->
+                        val isSelected = gender == g
+                        OutlinedButton(
+                            onClick = { gender = g },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                                contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                            ),
+                            border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+                        ) {
+                            Text(g)
+                        }
+                    }
+                }
                 DatePickerField(
                     value = dob,
                     onValueChange = { dob = it },
@@ -564,7 +586,7 @@ fun EditMemberDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            Button(
                 onClick = {
                     if (name.isBlank() || phone.isBlank()) {
                         showError = true
