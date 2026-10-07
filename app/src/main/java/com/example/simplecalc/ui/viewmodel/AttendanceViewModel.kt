@@ -12,6 +12,7 @@ import com.example.simplecalc.data.repository.AttendanceRepository
 import com.example.simplecalc.data.repository.GameRepository
 import com.example.simplecalc.data.repository.MemberMeasurementRepository
 import com.example.simplecalc.data.repository.MemberRepository
+import com.example.simplecalc.data.repository.OperationResult
 import com.example.simplecalc.data.repository.SubscriptionRepository
 import com.example.simplecalc.data.repository.TrainingScheduleRepository
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -126,20 +127,29 @@ class AttendanceViewModel(
                 checkIn = System.currentTimeMillis()
             )
             val result = attendanceRepository.checkIn(attendance, gameIds)
-            result.onSuccess {
-                if (weight != null) {
-                    val todayEpochDay = TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis())
-                    measurementRepository.addMeasurement(
-                        MemberMeasurementEntity(
-                            memberId = memberId,
-                            date = todayEpochDay,
-                            weight = weight,
-                            notes = notes
+            when (result) {
+                is OperationResult.Success -> {
+                    if (weight != null) {
+                        val todayEpochDay = TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis())
+                        measurementRepository.addMeasurement(
+                            MemberMeasurementEntity(
+                                memberId = memberId,
+                                date = todayEpochDay,
+                                weight = weight,
+                                notes = notes
+                            )
                         )
-                    )
+                    }
                 }
-            }.onFailure { ex ->
-                _checkInError.emit(ex.message ?: "فشل تسجيل الحضور.")
+                is OperationResult.OverlapError -> {
+                    _checkInError.emit(result.message)
+                }
+                is OperationResult.ArchivedMemberError -> {
+                    _checkInError.emit(result.message)
+                }
+                is OperationResult.Error -> {
+                    _checkInError.emit(result.message)
+                }
             }
         }
     }

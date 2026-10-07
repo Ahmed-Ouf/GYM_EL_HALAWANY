@@ -2,7 +2,9 @@ package com.example.simplecalc.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.simplecalc.data.local.entity.PlanType
 import com.example.simplecalc.data.repository.AttendanceRepository
+import com.example.simplecalc.data.repository.DashboardRepository
 import com.example.simplecalc.data.repository.MemberRepository
 import com.example.simplecalc.data.repository.PaymentRepository
 import com.example.simplecalc.data.repository.SubscriptionRepository
@@ -11,7 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import java.time.LocalDate
-import java.util.concurrent.TimeUnit
 
 data class DashboardUiState(
     val totalMembers: Int = 0,
@@ -28,6 +29,7 @@ data class DashboardUiState(
 )
 
 class DashboardViewModel(
+    dashboardRepository: DashboardRepository,
     memberRepository: MemberRepository,
     subscriptionRepository: SubscriptionRepository,
     attendanceRepository: AttendanceRepository,
@@ -40,53 +42,58 @@ class DashboardViewModel(
         (now / dayMillis) * dayMillis
     }
 
-    private val todayEpochDay = TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis())
+    private val todayEpochDay = LocalDate.now().toEpochDay()
 
     val uiState: StateFlow<DashboardUiState> = combine(
+        dashboardRepository.getDashboardStatsFlow(todayEpochDay, todayStartMillis),
         memberRepository.getAllActiveFlow(),
         subscriptionRepository.getAllSubscriptionsFlow(),
         attendanceRepository.getTodayAttendanceWithGamesFlow(todayStartMillis),
         paymentRepository.getAllPaymentsFlow()
-    ) { members, subscriptions, todayAttendance, payments ->
+    ) { stats, members, subscriptions, todayAttendance, payments ->
 
-        val activeMembersCount = members.size
-
-        val todayCheckInsCount = todayAttendance.size
-        val currentlyInsideCount = todayAttendance.count { it.attendance.checkOut == null }
         val sessionsUsedCount = todayAttendance.sumOf { it.games.size }
-
-        val todayPaymentsSum = payments.filter { it.date == todayEpochDay }.sumOf { it.amount }
-
-        val activeSubs = subscriptions.count { it.startDate <= todayEpochDay && it.endDate >= todayEpochDay }
-        val upcomingSubs = subscriptions.count { it.startDate > todayEpochDay }
-        val expiredSubs = subscriptions.count { it.endDate < todayEpochDay }
-        val expSoon = subscriptions.count {
-            it.startDate <= todayEpochDay && it.endDate >= todayEpochDay && (it.endDate - todayEpochDay) in 0..7
-        }
 
         val activities = mutableListOf<String>()
         members.firstOrNull()?.let { activities.add("عضو جديد: ${it.name}") }
-        subscriptions.firstOrNull()?.let { activities.add("اشتراك جديد: $it") }
-        payments.firstOrNull()?.let { activities.add("دفعة: $${it.amount}") }
+        subscriptions.firstOrNull()?.let { sub ->
+            val subMember = members.find { m -> m.id == sub.memberId }
+            val planTypeStr = when (sub.planType) {
+                PlanType.MONTHLY -> "شهري"
+                PlanType.QUARTERLY -> "3 أشهر"
+                PlanType.YEARLY -> "سنوي"
+            }
+            if (subMember != null) {
+                activities.add("اشتراك جديد: ${subMember.name} ($planTypeStr - $${sub.price})")
+            } else {
+                activities.add("اشتراك جديد: $planTypeStr - $${sub.price}")
+            }
+        }
+        payments.firstOrNull()?.let { pay ->
+            val payMember = members.find { m -> m.id == pay.memberId }
+            if (payMember != null) {
+                activities.add("دفعة جديدة: ${payMember.name} ($${pay.amount})")
+            } else {
+                activities.add("دفعة جديدة: $${pay.amount}")
+            }
+        }
 
         DashboardUiState(
-            totalMembers = members.size,
-            activeMembers = activeMembersCount,
-            todayCheckIns = todayCheckInsCount,
-            currentlyInside = currentlyInsideCount,
+            totalMembers = stats.totalMembers,
+            activeMembers = stats.activeMembers,
+            todayCheckIns = stats.todayAttendanceCount,
+            currentlyInside = stats.currentlyInsideCount,
             sessionsUsedToday = sessionsUsedCount,
-            todayPay = todayPaymentsSum,
-            expSoonCount = expSoon,
-            activeSubsCount = activeSubs,
-            upcomingSubsCount = upcomingSubs,
-            expiredSubsCount = expiredSubs,
+            todayPay = stats.todayPaymentsTotal,
+            expSoonCount = stats.expiringSoonCount,
+            activeSubsCount = stats.activeSubsCount,
+            upcomingSubsCount = stats.upcomingSubsCount,
+            expiredSubsCount = stats.expiredSubsCount,
             recentActivities = activities
         )
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubsubscribed(5000),
+        started = SharingStarted.WhileSubscribed(5000),
         initialValue = DashboardUiState()
     )
 }
-
-private fun SharingStarted.Companion.WhileSubsubscribed(i: Int): SharingStarted = WhileSubscribed(i.toLong())

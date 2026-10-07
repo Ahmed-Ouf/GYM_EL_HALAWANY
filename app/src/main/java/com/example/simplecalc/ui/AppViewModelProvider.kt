@@ -20,6 +20,7 @@ object AppViewModelProvider {
     val Factory = viewModelFactory {
         initializer {
             DashboardViewModel(
+                dashboardRepository = getAppContainer().dashboardRepository,
                 memberRepository = getAppContainer().memberRepository,
                 subscriptionRepository = getAppContainer().subscriptionRepository,
                 attendanceRepository = getAppContainer().attendanceRepository,
@@ -32,7 +33,8 @@ object AppViewModelProvider {
                 subscriptionRepository = getAppContainer().subscriptionRepository,
                 scheduleRepository = getAppContainer().trainingScheduleRepository,
                 measurementRepository = getAppContainer().memberMeasurementRepository,
-                attendanceRepository = getAppContainer().attendanceRepository
+                attendanceRepository = getAppContainer().attendanceRepository,
+                gameRepository = getAppContainer().gameRepository
             )
         }
         initializer {

@@ -19,7 +19,13 @@ class Converters {
 
     @TypeConverter
     fun fromPlanType(value: String?): PlanType? {
-        return value?.let { PlanType.valueOf(it) }
+        return value?.let {
+            try {
+                PlanType.valueOf(it)
+            } catch (e: IllegalArgumentException) {
+                null
+            }
+        }
     }
 
     @TypeConverter
@@ -29,7 +35,13 @@ class Converters {
 
     @TypeConverter
     fun fromPaymentMethod(value: String?): PaymentMethod? {
-        return value?.let { PaymentMethod.valueOf(it) }
+        return value?.let {
+            try {
+                PaymentMethod.valueOf(it)
+            } catch (e: IllegalArgumentException) {
+                null
+            }
+        }
     }
 
     @TypeConverter

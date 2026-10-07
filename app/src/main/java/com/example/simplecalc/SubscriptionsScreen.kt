@@ -57,7 +57,7 @@ import com.example.simplecalc.data.local.entity.GameEntity
 import com.example.simplecalc.data.local.entity.MemberEntity
 import com.example.simplecalc.data.local.entity.PlanType
 import com.example.simplecalc.data.local.entity.SubscriptionEntity
-import com.example.simplecalc.data.repository.AddSubscriptionResult
+import com.example.simplecalc.data.repository.OperationResult
 import com.example.simplecalc.ui.AppViewModelProvider
 import com.example.simplecalc.ui.components.AppCard
 import com.example.simplecalc.ui.components.EmptyState
@@ -288,11 +288,17 @@ fun AddSubscriptionDialog(
     LaunchedEffect(viewModel.addSubscriptionResult) {
         viewModel.addSubscriptionResult.collect { result ->
             when (result) {
-                is AddSubscriptionResult.Success -> onSuccess()
-                is AddSubscriptionResult.OverlapError -> {
+                is OperationResult.Success -> onSuccess()
+                is OperationResult.OverlapError -> {
                     errorMessage = "${result.message}\nتاريخ البدء المقترح: ${formatEpochDay(result.suggestedStartDateEpochDay)}"
                     startDateStr = formatEpochDay(result.suggestedStartDateEpochDay)
                     endDateStr = formatEpochDay(result.suggestedStartDateEpochDay + 30)
+                }
+                is OperationResult.ArchivedMemberError -> {
+                    errorMessage = result.message
+                }
+                is OperationResult.Error -> {
+                    errorMessage = result.message
                 }
             }
         }

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.simplecalc.data.local.entity.MemberEntity
 import com.example.simplecalc.data.local.entity.MemberMeasurementEntity
 import com.example.simplecalc.data.repository.AttendanceRepository
+import com.example.simplecalc.data.repository.GameRepository
 import com.example.simplecalc.data.repository.MemberMeasurementRepository
 import com.example.simplecalc.data.repository.MemberRepository
 import com.example.simplecalc.data.repository.SubscriptionRepository
@@ -13,8 +14,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
@@ -30,7 +29,8 @@ class MembersViewModel(
     private val subscriptionRepository: SubscriptionRepository,
     private val scheduleRepository: TrainingScheduleRepository,
     private val measurementRepository: MemberMeasurementRepository,
-    private val attendanceRepository: AttendanceRepository
+    private val attendanceRepository: AttendanceRepository,
+    private val gameRepository: GameRepository
 ) : ViewModel() {
 
     val searchQuery = MutableStateFlow("")
@@ -89,6 +89,16 @@ class MembersViewModel(
     fun getMemberMeasurementsFlow(memberId: Long) = measurementRepository.getForMemberFlow(memberId)
 
     fun getMemberSchedulesFlow(memberId: Long) = scheduleRepository.getForMemberFlow(memberId)
+
+    fun getAllActiveGamesFlow() = gameRepository.getAllActiveFlow()
+
+    fun getTrainingTypesForGameFlow(gameId: Long) = gameRepository.getTrainingTypes(gameId)
+
+    fun saveScheduleForMemberAndGame(memberId: Long, gameId: Long, trainingTypeIds: List<Long?>, dayOfWeek: Int) {
+        viewModelScope.launch {
+            scheduleRepository.saveScheduleForMemberAndGame(memberId, gameId, trainingTypeIds, dayOfWeek)
+        }
+    }
 
     fun addMeasurement(memberId: Long, weight: Double, notes: String?, date: Long = TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis())) {
         viewModelScope.launch {

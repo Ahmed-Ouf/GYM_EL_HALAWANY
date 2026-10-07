@@ -55,9 +55,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.simplecalc.data.local.entity.GameEntity
 import com.example.simplecalc.data.local.entity.MemberEntity
 import com.example.simplecalc.data.local.entity.MemberMeasurementEntity
 import com.example.simplecalc.data.local.entity.SubscriptionEntity
+import com.example.simplecalc.data.local.entity.TrainingScheduleEntity
 import com.example.simplecalc.ui.AppViewModelProvider
 import com.example.simplecalc.ui.theme.SimpleCalcTheme
 import com.example.simplecalc.ui.components.AppCard
@@ -121,6 +123,7 @@ fun MembersScreen(
     if (showScheduleScreen && selectedMember != null) {
         TrainingScheduleScreen(
             member = selectedMember,
+            viewModel = viewModel,
             onBack = { showScheduleScreen = false }
         )
     } else if (selectedMember != null) {
@@ -250,7 +253,18 @@ fun MemberDetailsScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     val subscriptions by viewModel.getMemberSubscriptionsFlow(member.id).collectAsStateWithLifecycle(initialValue = emptyList())
-    val measurements by viewModel.getMemberMeasurementsFlow(member.id).collectAsStateWithLifecycle(initialValue = emptyList())
+    val schedules by viewModel.getMemberSchedulesFlow(member.id).collectAsStateWithLifecycle(initialValue = emptyList())
+    val games by viewModel.getAllActiveGamesFlow().collectAsStateWithLifecycle(initialValue = emptyList())
+
+    val todayCal = Calendar.getInstance()
+    val todayDayOfWeek = todayCal.get(Calendar.DAY_OF_WEEK) // 1=Sun, 2=Mon...
+    val tomorrowDayOfWeek = if (todayDayOfWeek == 7) 1 else todayDayOfWeek + 1
+
+    val todaySchedules = schedules.filter { it.dayOfWeek == todayDayOfWeek }
+    val tomorrowSchedules = schedules.filter { it.dayOfWeek == tomorrowDayOfWeek }
+
+    val todayGameNames = todaySchedules.mapNotNull { sched -> games.find { it.id == sched.gameId }?.name }.distinct()
+    val tomorrowGameNames = tomorrowSchedules.mapNotNull { sched -> games.find { it.id == sched.gameId }?.name }.distinct()
 
     Scaffold(
         topBar = {
@@ -305,10 +319,12 @@ fun MemberDetailsScreen(
                 EmptyState(icon = Icons.Default.Search, title = "لا يوجد اشتراكات", subtitle = "هذا العضو غير مسجل في أي لعبة حالياً.")
             } else {
                 subscriptions.forEach { sub ->
+                    val game = games.find { it.id == sub.gameId }
+                    val gameName = game?.name ?: "لعبة #${sub.gameId}"
                     AppCard(modifier = Modifier.padding(bottom = 8.dp)) {
                         Column {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Text("اشتراك لعبة", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                                Text(gameName, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                                 StatusChip(text = sub.planType.name, status = "نشط")
                             }
                             Spacer(modifier = Modifier.height(8.dp))
@@ -327,9 +343,12 @@ fun MemberDetailsScreen(
                     val today = getArabicDayOfWeek(0)
                     val tomorrow = getArabicDayOfWeek(1)
 
-                    Text("اليوم ($today): ألعاب مسجلة", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                    val todayGamesStr = if (todayGameNames.isNotEmpty()) todayGameNames.joinToString(", ") else "لا يوجد تدريب مجدول"
+                    val tomorrowGamesStr = if (tomorrowGameNames.isNotEmpty()) tomorrowGameNames.joinToString(", ") else "لا يوجد تدريب مجدول"
+
+                    Text("اليوم ($today): $todayGamesStr", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text("غداً ($tomorrow): ألعاب مسجلة", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("غداً ($tomorrow): $tomorrowGamesStr", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(onClick = onShowSchedule, modifier = Modifier.fillMaxWidth()) {
                         Text("إدارة الجدول وعرض التفاصيل")
@@ -580,8 +599,14 @@ fun EditMemberDialog(
 @Composable
 fun TrainingScheduleScreen(
     member: MemberEntity,
+    viewModel: MembersViewModel,
     onBack: () -> Unit
 ) {
+    val schedules by viewModel.getMemberSchedulesFlow(member.id).collectAsStateWithLifecycle(initialValue = emptyList())
+    val games by viewModel.getAllActiveGamesFlow().collectAsStateWithLifecycle(initialValue = emptyList())
+
+    var selectedDayIndex by remember { mutableStateOf<Int?>(null) }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -591,14 +616,114 @@ fun TrainingScheduleScreen(
         }
     ) { padding ->
         LazyColumn(modifier = Modifier.padding(padding).fillMaxSize()) {
-            items(daysOfWeekArabic) { day ->
-                Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(day, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    Text("تدريب مجدول", color = MaterialTheme.colorScheme.primary)
+            items(daysOfWeekArabic.size) { index ->
+                val dayName = daysOfWeekArabic[index]
+                val dayOfWeekVal = index + 1 // 1=Sunday...
+                val daySchedules = schedules.filter { it.dayOfWeek == dayOfWeekVal }
+                val dayGameNames = daySchedules.mapNotNull { sched -> games.find { it.id == sched.gameId }?.name }.distinct()
+
+                AppCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    onClick = { selectedDayIndex = index }
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(dayName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                            val summary = if (dayGameNames.isNotEmpty()) dayGameNames.joinToString(", ") else "لا يوجد تدريب"
+                            Text(summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        IconButton(onClick = { selectedDayIndex = index }) {
+                            Icon(Icons.Default.Edit, contentDescription = "تعديل الجدول")
+                        }
+                    }
                 }
             }
         }
     }
+
+    if (selectedDayIndex != null) {
+        val index = selectedDayIndex!!
+        val dayName = daysOfWeekArabic[index]
+        val dayOfWeekVal = index + 1
+
+        AddEditScheduleDialog(
+            dayName = dayName,
+            games = games,
+            currentSchedules = schedules.filter { it.dayOfWeek == dayOfWeekVal },
+            onDismiss = { selectedDayIndex = null },
+            onSave = { gameId, trainingTypeIds ->
+                viewModel.saveScheduleForMemberAndGame(member.id, gameId, trainingTypeIds, dayOfWeekVal)
+                selectedDayIndex = null
+            }
+        )
+    }
+}
+
+@Composable
+fun AddEditScheduleDialog(
+    dayName: String,
+    games: List<GameEntity>,
+    currentSchedules: List<TrainingScheduleEntity>,
+    onDismiss: () -> Unit,
+    onSave: (gameId: Long, trainingTypeIds: List<Long?>) -> Unit
+) {
+    var selectedGame by remember { mutableStateOf<GameEntity?>(games.firstOrNull()) }
+    var gameMenuExpanded by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("جدول يوم $dayName") },
+        text = {
+            Column {
+                Text("اختر اللعبة للتدريب في هذا اليوم:", style = MaterialTheme.typography.bodyMedium)
+                Spacer(modifier = Modifier.height(8.dp))
+                Box {
+                    OutlinedButton(
+                        onClick = { gameMenuExpanded = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(selectedGame?.name ?: "اختر اللعبة")
+                    }
+                    DropdownMenu(
+                        expanded = gameMenuExpanded,
+                        onDismissRequest = { gameMenuExpanded = false }
+                    ) {
+                        games.forEach { g ->
+                            DropdownMenuItem(
+                                text = { Text(g.name) },
+                                onClick = {
+                                    selectedGame = g
+                                    gameMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val g = selectedGame
+                    if (g != null) {
+                        onSave(g.id, listOf(null))
+                    }
+                },
+                enabled = selectedGame != null
+            ) {
+                Text("حفظ")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("إلغاء") }
+        }
+    )
 }
 
 @Preview(showBackground = true)
