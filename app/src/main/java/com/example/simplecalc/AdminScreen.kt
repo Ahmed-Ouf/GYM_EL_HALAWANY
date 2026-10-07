@@ -56,6 +56,7 @@ import com.example.simplecalc.data.local.entity.TrainingTypeEntity
 import com.example.simplecalc.ui.AppViewModelProvider
 import com.example.simplecalc.ui.components.AppCard
 import com.example.simplecalc.ui.components.EmptyState
+import com.example.simplecalc.ui.components.appTextFieldColors
 import com.example.simplecalc.ui.theme.SimpleCalcTheme
 import com.example.simplecalc.ui.viewmodel.AdminViewModel
 
@@ -258,6 +259,7 @@ fun AddEditGameDialog(
                     label = { Text("اسم اللعبة *") },
                     singleLine = true,
                     shape = MaterialTheme.shapes.medium,
+                    colors = appTextFieldColors(),
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                 )
                 OutlinedTextField(
@@ -266,6 +268,7 @@ fun AddEditGameDialog(
                     label = { Text("السعر الافتراضي *") },
                     singleLine = true,
                     shape = MaterialTheme.shapes.medium,
+                    colors = com.example.simplecalc.ui.components.appTextFieldColors(),
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                 )
             }
@@ -355,6 +358,7 @@ fun GameTrainingsScreen(
                         label = { Text("اسم التدريب * (مثل: صدر، ظهر)") },
                         singleLine = true,
                         shape = MaterialTheme.shapes.medium,
+                        colors = com.example.simplecalc.ui.components.appTextFieldColors(),
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     )
                 }

@@ -60,6 +60,7 @@ import com.example.simplecalc.ui.components.GameChip
 import com.example.simplecalc.ui.components.MemberAvatar
 import com.example.simplecalc.ui.components.StatCard
 import com.example.simplecalc.ui.components.StatusChip
+import com.example.simplecalc.ui.components.appTextFieldColors
 import com.example.simplecalc.ui.theme.SimpleCalcTheme
 import com.example.simplecalc.ui.theme.StatusColorsLight
 import com.example.simplecalc.ui.viewmodel.AttendanceUiState
@@ -386,6 +387,7 @@ fun CheckInDialog(
                         label = { Text("الوزن - كجم (اختياري)") },
                         singleLine = true,
                         shape = MaterialTheme.shapes.medium,
+                        colors = appTextFieldColors(),
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     )
                     OutlinedTextField(
@@ -394,6 +396,7 @@ fun CheckInDialog(
                         label = { Text("ملاحظات الزيارة (اختياري)") },
                         singleLine = true,
                         shape = MaterialTheme.shapes.medium,
+                        colors = com.example.simplecalc.ui.components.appTextFieldColors(),
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     )
                 }

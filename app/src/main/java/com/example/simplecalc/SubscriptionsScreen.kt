@@ -64,6 +64,7 @@ import com.example.simplecalc.ui.components.EmptyState
 import com.example.simplecalc.ui.components.MemberAvatar
 import com.example.simplecalc.ui.components.SectionHeader
 import com.example.simplecalc.ui.components.StatusChip
+import com.example.simplecalc.ui.components.appTextFieldColors
 import com.example.simplecalc.ui.theme.SimpleCalcTheme
 import com.example.simplecalc.ui.viewmodel.SubscriptionsUiState
 import com.example.simplecalc.ui.viewmodel.SubscriptionsViewModel
@@ -419,6 +420,7 @@ fun AddSubscriptionDialog(
                     label = { Text("السعر *") },
                     singleLine = true,
                     shape = MaterialTheme.shapes.medium,
+                    colors = appTextFieldColors(),
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                 )
 

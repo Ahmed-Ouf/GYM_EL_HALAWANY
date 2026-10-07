@@ -61,6 +61,7 @@ import com.example.simplecalc.ui.components.AppCard
 import com.example.simplecalc.ui.components.EmptyState
 import com.example.simplecalc.ui.components.MemberAvatar
 import com.example.simplecalc.ui.components.SectionHeader
+import com.example.simplecalc.ui.components.appTextFieldColors
 import com.example.simplecalc.ui.theme.SimpleCalcTheme
 import com.example.simplecalc.ui.viewmodel.PaymentsUiState
 import com.example.simplecalc.ui.viewmodel.PaymentsViewModel
@@ -409,6 +410,7 @@ fun AddPaymentDialog(
                     label = { Text("المبلغ *") },
                     singleLine = true,
                     shape = MaterialTheme.shapes.medium,
+                    colors = appTextFieldColors(),
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                 )
 
@@ -450,6 +452,7 @@ fun AddPaymentDialog(
                     onValueChange = { notes = it },
                     label = { Text("ملاحظات") },
                     shape = MaterialTheme.shapes.medium,
+                    colors = com.example.simplecalc.ui.components.appTextFieldColors(),
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                 )
             }

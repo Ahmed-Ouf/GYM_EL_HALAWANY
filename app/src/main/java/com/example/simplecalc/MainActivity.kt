@@ -54,6 +54,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -80,15 +81,23 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.example.simplecalc.ui.components.AppCard
 import com.example.simplecalc.ui.components.EmptyState
+import com.example.simplecalc.ui.components.FilterPillRow
+import com.example.simplecalc.ui.components.MemberAvatar
+import com.example.simplecalc.ui.components.ProgressBannerCard
 import com.example.simplecalc.ui.components.SectionHeader
 import com.example.simplecalc.ui.components.StatCard
 import com.example.simplecalc.ui.components.StatusChip
+import com.example.simplecalc.ui.theme.AccentBlue
+import com.example.simplecalc.ui.theme.AccentOrange
+import com.example.simplecalc.ui.theme.AccentPink
+import com.example.simplecalc.ui.theme.AccentPurple
 import com.example.simplecalc.ui.theme.SimpleCalcTheme
 import com.example.simplecalc.ui.theme.StatusColorsDark
 import com.example.simplecalc.ui.theme.StatusColorsLight
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.simplecalc.ui.AppViewModelProvider
+import com.example.simplecalc.ui.components.appTextFieldColors
 import com.example.simplecalc.ui.viewmodel.AttendanceViewModel
 import com.example.simplecalc.ui.viewmodel.DashboardViewModel
 import com.example.simplecalc.ui.viewmodel.MembersViewModel
@@ -135,21 +144,72 @@ fun GymManagementApp() {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(text = currentDestination.title, fontWeight = FontWeight.Bold) },
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = currentDestination.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "نادي الأبطال الرياضي",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                navigationIcon = {
+                    Box(modifier = Modifier.padding(start = 12.dp)) {
+                        IconButton(onClick = {}) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "الإشعارات",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .align(Alignment.TopEnd)
+                                .background(MaterialTheme.colorScheme.primary, CircleShape)
+                        )
+                    }
+                },
+                actions = {
+                    Box(modifier = Modifier.padding(end = 12.dp)) {
+                        MemberAvatar(name = "كابتن")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    containerColor = MaterialTheme.colorScheme.background,
                 ),
             )
         },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 4.dp
+            ) {
                 GymDestination.entries.forEach { destination ->
+                    val isSelected = currentDestination == destination
                     NavigationBarItem(
-                        selected = currentDestination == destination,
+                        selected = isSelected,
                         onClick = { currentDestination = destination },
                         icon = { Icon(destination.icon, contentDescription = destination.title) },
-                        label = { Text(destination.title) }
+                        label = {
+                            Text(
+                                text = destination.title,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primary,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
                 }
             }
@@ -200,6 +260,7 @@ fun DashboardScreen(
     var showAddSubscription by remember { mutableStateOf(false) }
     var showAddPayment by remember { mutableStateOf(false) }
     var showCheckIn by remember { mutableStateOf(false) }
+    var selectedFilter by remember { mutableStateOf("الكل") }
 
     val membersViewModel: MembersViewModel = viewModel(factory = AppViewModelProvider.Factory)
     val subsViewModel: SubscriptionsViewModel = viewModel(factory = AppViewModelProvider.Factory)
@@ -210,30 +271,73 @@ fun DashboardScreen(
     val paymentsUiState by paymentsViewModel.uiState.collectAsStateWithLifecycle()
     val attendanceUiState by attendanceViewModel.uiState.collectAsStateWithLifecycle()
 
+    val attendancePct = if (uiState.activeMembers > 0) {
+        ((uiState.todayCheckIns.toFloat() / uiState.activeMembers) * 100).toInt().coerceAtMost(100)
+    } else 85
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        SectionHeader("لوحة التحكم")
+        // Figma Progress Banner Card
+        ProgressBannerCard(
+            title = "نشاط اليوم بالنادي ⚡",
+            subtitle = "تم تسجيل ${uiState.todayCheckIns} حضور اليوم من إجمالي ${uiState.activeMembers} عضو نشط.",
+            progressPercentage = attendancePct,
+            buttonText = "تسجيل حضور سريع",
+            onButtonClick = { showCheckIn = true }
+        )
 
-        // 2x2 Grid of StatCards
+        Spacer(modifier = Modifier.height(20.dp))
+        SectionHeader("ملخص الإحصائيات")
+
+        // 2x2 Grid of StatCards with Figma Category Colors
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatCard(icon = Icons.Default.Person, value = "${uiState.totalMembers}", label = "إجمالي الأعضاء", accentColor = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
-            StatCard(icon = Icons.Default.CheckCircle, value = "${uiState.activeMembers}", label = "أعضاء نشطين", accentColor = StatusColorsLight.Active, modifier = Modifier.weight(1f))
+            StatCard(
+                icon = Icons.Default.Person,
+                value = "${uiState.totalMembers}",
+                label = "إجمالي الأعضاء",
+                accentColor = AccentPurple,
+                modifier = Modifier.weight(1f)
+            )
+            StatCard(
+                icon = Icons.Default.CheckCircle,
+                value = "${uiState.activeMembers}",
+                label = "أعضاء نشطين",
+                accentColor = AccentPink,
+                modifier = Modifier.weight(1f)
+            )
         }
         Spacer(modifier = Modifier.height(12.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatCard(icon = Icons.Default.Home, value = "${uiState.todayCheckIns}", label = "حضور اليوم", accentColor = MaterialTheme.colorScheme.secondary, modifier = Modifier.weight(1f))
-            StatCard(icon = Icons.Default.ShoppingCart, value = "$${uiState.todayPay}", label = "مدفوعات اليوم", accentColor = StatusColorsLight.Warning, modifier = Modifier.weight(1f))
+            StatCard(
+                icon = Icons.Default.Home,
+                value = "${uiState.todayCheckIns}",
+                label = "حضور اليوم",
+                accentColor = AccentBlue,
+                modifier = Modifier.weight(1f)
+            )
+            StatCard(
+                icon = Icons.Default.ShoppingCart,
+                value = "$${uiState.todayPay}",
+                label = "مدفوعات اليوم",
+                accentColor = AccentOrange,
+                modifier = Modifier.weight(1f)
+            )
         }
 
         if (uiState.expSoonCount > 0) {
             Spacer(modifier = Modifier.height(12.dp))
             AppCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Warning, contentDescription = null, tint = StatusColorsLight.Warning, modifier = Modifier.size(24.dp))
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = AccentOrange,
+                        modifier = Modifier.size(24.dp)
+                    )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = "تنتهي صلاحية ${uiState.expSoonCount} اشتراك(ات) خلال 7 أيام قادمة.",
@@ -255,6 +359,15 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
         SectionHeader("حالة الاشتراكات")
+        
+        FilterPillRow(
+            filters = listOf("الكل", "نشط", "قريب الانتهاء", "منتهي"),
+            selectedFilter = selectedFilter,
+            onFilterSelected = { selectedFilter = it }
+        )
+        
+        Spacer(modifier = Modifier.height(12.dp))
+
         AppCard {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -435,6 +548,7 @@ fun DatePickerField(
         readOnly = true,
         isError = isError,
         shape = MaterialTheme.shapes.medium,
+        colors = appTextFieldColors(),
         interactionSource = interactionSource,
         trailingIcon = {
             IconButton(onClick = { showDatePicker = true }) {
