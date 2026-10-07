@@ -1,5 +1,6 @@
 package com.example.simplecalc
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -17,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -25,10 +28,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,90 +39,67 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-
-data class Payment(
-    val id: Int,
-    val memberId: Int,
-    val memberName: String,
-    val subscriptionId: Int,
-    val subscriptionDetails: String,
-    val amount: Double,
-    val date: String,
-    val method: String,
-    val notes: String
-)
-
-val initialMockPayments = listOf(
-    Payment(1, 1, "أحمد محمد", 1, "رفع الأثقال - شهري", 500.0, "2024-10-01", "بطاقة", "تم الدفع في الاستقبال"),
-    Payment(2, 2, "سارة أحمد", 2, "سباحة - سنوي", 400.0, "2024-01-01", "تحويل بنكي", ""),
-    Payment(3, 3, "خالد محمود", 3, "ملاكمة - 3 أشهر", 1800.0, "2024-12-01", "نقدي", "")
-)
-
-val globalPayments = mutableStateListOf(*initialMockPayments.toTypedArray())
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.simplecalc.data.local.entity.MemberEntity
+import com.example.simplecalc.data.local.entity.PaymentEntity
+import com.example.simplecalc.data.local.entity.PaymentMethod
+import com.example.simplecalc.data.local.entity.SubscriptionEntity
+import com.example.simplecalc.ui.AppViewModelProvider
+import com.example.simplecalc.ui.components.AppCard
+import com.example.simplecalc.ui.components.EmptyState
+import com.example.simplecalc.ui.components.MemberAvatar
+import com.example.simplecalc.ui.components.SectionHeader
+import com.example.simplecalc.ui.theme.SimpleCalcTheme
+import com.example.simplecalc.ui.viewmodel.PaymentsUiState
+import com.example.simplecalc.ui.viewmodel.PaymentsViewModel
+import java.util.concurrent.TimeUnit
 
 @Composable
-fun PaymentsScreen(onBack: (() -> Unit)? = null) {
-    var selectedPayment by remember { mutableStateOf<Payment?>(null) }
+fun PaymentsScreen(
+    onBack: (() -> Unit)? = null,
+    viewModel: PaymentsViewModel = viewModel(factory = AppViewModelProvider.Factory)
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var selectedPayment by remember { mutableStateOf<PaymentEntity?>(null) }
 
     if (selectedPayment != null) {
         PaymentDetailsScreen(
             payment = selectedPayment!!,
+            members = uiState.members,
+            subscriptions = uiState.subscriptions,
             onBack = { selectedPayment = null }
         )
     } else {
         PaymentsListScreen(
-            onPaymentClick = { selectedPayment = it },
-            onBack = onBack
+            uiState = uiState,
+            viewModel = viewModel,
+            onPaymentClick = { selectedPayment = it }
         )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PaymentsListScreen(onPaymentClick: (Payment) -> Unit, onBack: (() -> Unit)? = null) {
-    var selectedFilter by remember { mutableStateOf("الكل") }
+fun PaymentsListScreen(
+    uiState: PaymentsUiState,
+    viewModel: PaymentsViewModel,
+    onPaymentClick: (PaymentEntity) -> Unit
+) {
     val filters = listOf("الكل", "نقدي", "بطاقة", "تحويل بنكي")
     var showAddDialog by remember { mutableStateOf(false) }
 
-    val filteredPayments = globalPayments.filter {
-        when (selectedFilter) {
-            "الكل" -> true
-            else -> it.method == selectedFilter
-        }
-    }
-
-    val totalAmount = filteredPayments.sumOf { it.amount }
-    val paymentCount = filteredPayments.size
-
     Scaffold(
-        topBar = {
-            if (onBack != null) {
-                CenterAlignedTopAppBar(
-                    title = { Text("المدفوعات", fontWeight = FontWeight.Bold) },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    )
-                )
-            }
-        },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { showAddDialog = true },
@@ -154,11 +133,11 @@ fun PaymentsListScreen(onPaymentClick: (Payment) -> Unit, onBack: (() -> Unit)? 
                 ) {
                     Column {
                         Text("إجمالي المدفوعات", style = MaterialTheme.typography.bodyMedium)
-                        Text("$$totalAmount", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                        Text("$${uiState.totalAmount}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Text("العدد", style = MaterialTheme.typography.bodyMedium)
-                        Text("$paymentCount", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("${uiState.paymentCount}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -167,36 +146,35 @@ fun PaymentsListScreen(onPaymentClick: (Payment) -> Unit, onBack: (() -> Unit)? 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 filters.forEach { filter ->
-                    val isSelected = selectedFilter == filter
-                    Button(
-                        onClick = { selectedFilter = filter },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    ) {
-                        Text(filter)
-                    }
+                    val isSelected = uiState.selectedFilter == filter
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { viewModel.onFilterSelected(filter) },
+                        label = { Text(filter) }
+                    )
                 }
             }
 
             // List
-            if (filteredPayments.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize().padding(top = 16.dp), contentAlignment = Alignment.Center) {
-                    Text("لم يتم العثور على مدفوعات.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+            if (uiState.payments.isEmpty()) {
+                EmptyState(icon = Icons.Default.ShoppingCart, title = "لا يوجد مدفوعات", subtitle = "لم يتم تسجيل أي مدفوعات بعد.")
             } else {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(top = 8.dp)
                 ) {
-                    items(filteredPayments, key = { it.id }) { payment ->
-                        PaymentItem(payment = payment, onClick = { onPaymentClick(payment) })
+                    items(uiState.payments, key = { it.id }) { payment ->
+                        PaymentItem(
+                            payment = payment,
+                            members = uiState.members,
+                            subscriptions = uiState.subscriptions,
+                            onClick = { onPaymentClick(payment) }
+                        )
                     }
                 }
             }
@@ -205,22 +183,11 @@ fun PaymentsListScreen(onPaymentClick: (Payment) -> Unit, onBack: (() -> Unit)? 
 
     if (showAddDialog) {
         AddPaymentDialog(
+            members = uiState.members,
+            subscriptions = uiState.subscriptions,
             onDismiss = { showAddDialog = false },
-            onSave = { member, subscription, amount, date, method, notes ->
-                val newId = (globalPayments.maxOfOrNull { it.id } ?: 0) + 1
-                globalPayments.add(
-                    Payment(
-                        id = newId,
-                        memberId = member.id,
-                        memberName = member.name,
-                        subscriptionId = subscription.id,
-                        subscriptionDetails = "${subscription.gameName} - ${subscription.planType}",
-                        amount = amount,
-                        date = date,
-                        method = method,
-                        notes = notes
-                    )
-                )
+            onSave = { memberId, subscriptionId, amount, method, date, notes ->
+                viewModel.recordPayment(memberId, subscriptionId, amount, method, parseEpochDay(date), notes)
                 showAddDialog = false
             }
         )
@@ -228,25 +195,42 @@ fun PaymentsListScreen(onPaymentClick: (Payment) -> Unit, onBack: (() -> Unit)? 
 }
 
 @Composable
-fun PaymentItem(payment: Payment, onClick: () -> Unit) {
-    ElevatedCard(
+fun PaymentItem(
+    payment: PaymentEntity,
+    members: List<MemberEntity>,
+    subscriptions: List<SubscriptionEntity>,
+    onClick: () -> Unit
+) {
+    val member = members.find { it.id == payment.memberId }
+    val memberName = member?.name ?: "عضو #${payment.memberId}"
+
+    val methodLabel = when (payment.method) {
+        PaymentMethod.CASH -> "نقدي"
+        PaymentMethod.CARD -> "بطاقة"
+        PaymentMethod.TRANSFER -> "تحويل بنكي"
+    }
+
+    AppCard(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .clickable { onClick() },
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        onClick = onClick
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
-                Text(
-                    text = payment.memberName,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    MemberAvatar(name = memberName)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = memberName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
                 Text(
                     text = "$${payment.amount}",
                     style = MaterialTheme.typography.titleMedium,
@@ -254,15 +238,16 @@ fun PaymentItem(payment: Payment, onClick: () -> Unit) {
                     color = MaterialTheme.colorScheme.primary
                 )
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = "التاريخ: ${payment.date}", style = MaterialTheme.typography.bodyMedium)
-            Text(text = "الطريقة: ${payment.method}", style = MaterialTheme.typography.bodyMedium)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "الاشتراك: ${payment.subscriptionDetails}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = "الطريقة: $methodLabel | التاريخ: ${formatEpochDay(payment.date)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (!payment.note.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "ملاحظات: ${payment.note}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -270,9 +255,20 @@ fun PaymentItem(payment: Payment, onClick: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PaymentDetailsScreen(
-    payment: Payment,
+    payment: PaymentEntity,
+    members: List<MemberEntity>,
+    subscriptions: List<SubscriptionEntity>,
     onBack: () -> Unit
 ) {
+    val member = members.find { it.id == payment.memberId }
+    val memberName = member?.name ?: "عضو #${payment.memberId}"
+
+    val methodLabel = when (payment.method) {
+        PaymentMethod.CASH -> "نقدي"
+        PaymentMethod.CARD -> "بطاقة"
+        PaymentMethod.TRANSFER -> "تحويل بنكي"
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -293,26 +289,17 @@ fun PaymentDetailsScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("العضو: ${payment.memberName}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
-                    Text("المبلغ: $${payment.amount}", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
-                    
-                    Text("التاريخ: ${payment.date}", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(bottom = 4.dp))
-                    Text("الطريقة: ${payment.method}", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(bottom = 4.dp))
-                    Text("الاشتراك: ${payment.subscriptionDetails}", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(bottom = 4.dp))
-                    
-                    if (payment.notes.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("ملاحظات:", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-                        Text(payment.notes, style = MaterialTheme.typography.bodyMedium)
+            SectionHeader("معلومات الدفعة")
+            AppCard {
+                Column {
+                    Text("العضو: $memberName", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
+                    Text("المبلغ: $${payment.amount}", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 8.dp))
+                    Text("التاريخ: ${formatEpochDay(payment.date)}", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(bottom = 4.dp))
+                    Text("طريقة الدفع: $methodLabel", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(bottom = 4.dp))
+                    if (!payment.note.isNullOrBlank()) {
+                        Text("ملاحظات: ${payment.note}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -322,24 +309,24 @@ fun PaymentDetailsScreen(
 
 @Composable
 fun AddPaymentDialog(
+    members: List<MemberEntity>,
+    subscriptions: List<SubscriptionEntity>,
     onDismiss: () -> Unit,
-    onSave: (member: Member, subscription: Subscription, amount: Double, date: String, method: String, notes: String) -> Unit
+    onSave: (memberId: Long, subscriptionId: Long, amount: Double, method: PaymentMethod, date: String, notes: String?) -> Unit
 ) {
-    var selectedMember by remember { mutableStateOf<Member?>(null) }
+    var selectedMember by remember { mutableStateOf<MemberEntity?>(null) }
     var memberMenuExpanded by remember { mutableStateOf(false) }
 
-    var selectedSubscription by remember { mutableStateOf<Subscription?>(null) }
+    var selectedSubscription by remember { mutableStateOf<SubscriptionEntity?>(null) }
     var subscriptionMenuExpanded by remember { mutableStateOf(false) }
 
-    var method by remember { mutableStateOf("نقدي") }
-    var methodMenuExpanded by remember { mutableStateOf(false) }
-    val methods = listOf("نقدي", "بطاقة", "تحويل بنكي")
-
-    var amountString by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf("") }
+    var amountStr by remember { mutableStateOf("") }
+    var selectedMethod by remember { mutableStateOf(PaymentMethod.CASH) }
+    var date by remember { mutableStateOf(formatEpochDay(TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis()))) }
     var notes by remember { mutableStateOf("") }
-    
     var showError by remember { mutableStateOf(false) }
+
+    val memberSubscriptions = subscriptions.filter { it.memberId == selectedMember?.id }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -348,20 +335,18 @@ fun AddPaymentDialog(
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 if (showError) {
                     Text(
-                        text = "العضو والاشتراك والمبلغ والتاريخ مطلوبة.",
+                        text = "يرجى اختيار العضو والاشتراك وإدخال مبلغ صحيح.",
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                 }
 
-                // Member Selection Dropdown
+                // Member Dropdown
                 Box {
                     OutlinedButton(
                         onClick = { memberMenuExpanded = true },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     ) {
                         Text(selectedMember?.name ?: "اختر العضو *")
                     }
@@ -369,16 +354,17 @@ fun AddPaymentDialog(
                         expanded = memberMenuExpanded,
                         onDismissRequest = { memberMenuExpanded = false }
                     ) {
-                        if (globalMembers.isEmpty()) {
+                        if (members.isEmpty()) {
                             DropdownMenuItem(text = { Text("لا يوجد أعضاء") }, onClick = { memberMenuExpanded = false })
                         } else {
-                            globalMembers.forEach { m ->
+                            members.forEach { m ->
                                 DropdownMenuItem(
                                     text = { Text(m.name) },
                                     onClick = {
                                         selectedMember = m
-                                        selectedSubscription = null // Reset subscription when member changes
+                                        selectedSubscription = null
                                         memberMenuExpanded = false
+                                        showError = false
                                     }
                                 )
                             }
@@ -386,31 +372,30 @@ fun AddPaymentDialog(
                     }
                 }
 
-                // Subscription Selection Dropdown
+                // Subscription Dropdown
                 Box {
                     OutlinedButton(
                         onClick = { subscriptionMenuExpanded = true },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        enabled = selectedMember != null
+                        enabled = selectedMember != null,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     ) {
-                        Text(selectedSubscription?.planType ?: "اختر الاشتراك *")
+                        Text(selectedSubscription?.let { "اشتراك #${it.id} ($${it.price})" } ?: "اختر الاشتراك *")
                     }
                     DropdownMenu(
                         expanded = subscriptionMenuExpanded,
                         onDismissRequest = { subscriptionMenuExpanded = false }
                     ) {
-                        val memberSubscriptions = globalSubscriptions.filter { it.memberId == selectedMember?.id }
                         if (memberSubscriptions.isEmpty()) {
-                            DropdownMenuItem(text = { Text("لم يتم العثور على اشتراكات") }, onClick = { subscriptionMenuExpanded = false })
+                            DropdownMenuItem(text = { Text("لا يوجد اشتراكات لهذا العضو") }, onClick = { subscriptionMenuExpanded = false })
                         } else {
                             memberSubscriptions.forEach { s ->
                                 DropdownMenuItem(
-                                    text = { Text("${s.gameName} - ${s.planType} - $${s.price}") },
+                                    text = { Text("اشتراك #${s.id} - ${s.planType.name} - $${s.price}") },
                                     onClick = {
                                         selectedSubscription = s
+                                        amountStr = s.price.toString()
                                         subscriptionMenuExpanded = false
+                                        showError = false
                                     }
                                 )
                             }
@@ -419,68 +404,66 @@ fun AddPaymentDialog(
                 }
 
                 OutlinedTextField(
-                    value = amountString,
-                    onValueChange = { amountString = it; showError = false },
+                    value = amountStr,
+                    onValueChange = { amountStr = it; showError = false },
                     label = { Text("المبلغ *") },
-                    placeholder = { Text("50.00") },
                     singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                )
-
-                DatePickerField(
-                    value = date,
-                    onValueChange = { date = it; showError = false },
-                    label = "تاريخ الدفع *",
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                 )
 
-                // Method Selection Dropdown
-                Box {
-                    OutlinedButton(
-                        onClick = { methodMenuExpanded = true },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                    ) {
-                        Text("الطريقة: $method")
-                    }
-                    DropdownMenu(
-                        expanded = methodMenuExpanded,
-                        onDismissRequest = { methodMenuExpanded = false }
-                    ) {
-                        methods.forEach { m ->
-                            DropdownMenuItem(
-                                text = { Text(m) },
-                                onClick = {
-                                    method = m
-                                    methodMenuExpanded = false
-                                }
-                            )
+                Text("طريقة الدفع", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    PaymentMethod.entries.forEach { m ->
+                        val isSelected = selectedMethod == m
+                        val label = when (m) {
+                            PaymentMethod.CASH -> "نقدي"
+                            PaymentMethod.CARD -> "بطاقة"
+                            PaymentMethod.TRANSFER -> "تحويل بنكي"
+                        }
+                        OutlinedButton(
+                            onClick = { selectedMethod = m },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                                contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                            ),
+                            border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+                        ) {
+                            Text(label, style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
 
+                DatePickerField(
+                    value = date,
+                    onValueChange = { date = it },
+                    label = "تاريخ الدفع *",
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                )
+
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text("ملاحظات (اختياري)") },
-                    maxLines = 3,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
+                    label = { Text("ملاحظات") },
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                 )
             }
         },
         confirmButton = {
-            TextButton(
+            Button(
                 onClick = {
-                    val parsedAmount = amountString.toDoubleOrNull()
-                    if (selectedMember == null || selectedSubscription == null || parsedAmount == null || date.isBlank()) {
+                    val m = selectedMember
+                    val s = selectedSubscription
+                    val parsedAmount = amountStr.toDoubleOrNull()
+                    if (m == null || s == null || parsedAmount == null || parsedAmount <= 0) {
                         showError = true
                     } else {
-                        onSave(selectedMember!!, selectedSubscription!!, parsedAmount, date, method, notes)
+                        onSave(m.id, s.id, parsedAmount, selectedMethod, date, notes.ifBlank { null })
                     }
                 }
             ) {
@@ -493,4 +476,12 @@ fun AddPaymentDialog(
             }
         }
     )
+}
+
+@Preview(showBackground = true)
+@Composable
+fun PaymentsScreenPreview() {
+    SimpleCalcTheme {
+        PaymentsScreen()
+    }
 }

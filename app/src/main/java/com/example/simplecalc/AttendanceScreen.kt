@@ -17,90 +17,74 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.simplecalc.data.local.dao.AttendanceWithGames
+import com.example.simplecalc.data.local.entity.MemberEntity
+import com.example.simplecalc.ui.AppViewModelProvider
+import com.example.simplecalc.ui.components.AppCard
+import com.example.simplecalc.ui.components.EmptyState
+import com.example.simplecalc.ui.components.GameChip
+import com.example.simplecalc.ui.components.MemberAvatar
+import com.example.simplecalc.ui.components.StatCard
+import com.example.simplecalc.ui.components.StatusChip
+import com.example.simplecalc.ui.theme.SimpleCalcTheme
+import com.example.simplecalc.ui.theme.StatusColorsLight
+import com.example.simplecalc.ui.viewmodel.AttendanceUiState
+import com.example.simplecalc.ui.viewmodel.AttendanceViewModel
+import com.example.simplecalc.ui.viewmodel.SuggestedGamesInfo
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-fun getCurrentDate(): String {
-    return SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-}
-
 fun getCurrentTime(): String {
-    return SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
+    return SimpleDateFormat("hh:mm a", Locale.US).format(Date()).replace("AM", "ص").replace("PM", "م")
 }
 
-data class AttendanceGameRef(
-    val subscriptionId: Int,
-    val gameName: String
-)
-
-data class Attendance(
-    val id: Int,
-    val memberId: Int,
-    val memberName: String,
-    val checkInTime: String,
-    val checkOutTime: String?,
-    val status: String,
-    val date: String,
-    val games: List<AttendanceGameRef> = emptyList(),
-    val weight: Double? = null,
-    val notes: String = ""
-)
-
-val initialMockAttendance = listOf(
-    Attendance(1, 1, "أحمد محمد", "08:00 ص", null, "حاضر", getCurrentDate(), listOf(AttendanceGameRef(1, "رفع الأثقال")), 75.5, "تمرين صباحي"),
-    Attendance(2, 2, "سارة أحمد", "07:30 ص", "09:30 ص", "منصرف", getCurrentDate(), listOf(AttendanceGameRef(2, "سباحة")), null, "")
-)
-
-val globalAttendance = mutableStateListOf(*initialMockAttendance.toTypedArray())
+fun formatTime(millis: Long): String {
+    return SimpleDateFormat("hh:mm a", Locale.US).format(Date(millis)).replace("AM", "ص").replace("PM", "م")
+}
 
 @Composable
-fun AttendanceScreen() {
-    var selectedFilter by remember { mutableStateOf("الكل") }
-    val filters = listOf("الكل", "حاضر", "منصرف")
+fun AttendanceScreen(
+    viewModel: AttendanceViewModel = viewModel(factory = AppViewModelProvider.Factory)
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showCheckInDialog by remember { mutableStateOf(false) }
-    var confirmCheckOutRecord by remember { mutableStateOf<Attendance?>(null) }
-
-    val todayRecords = globalAttendance.filter { it.date == getCurrentDate() }
-    
-    val filteredRecords = todayRecords.filter {
-        when (selectedFilter) {
-            "حاضر" -> it.status == "حاضر"
-            "منصرف" -> it.status == "منصرف"
-            else -> true
-        }
-    }
-
-    val totalAttendance = todayRecords.size
-    val currentlyInside = todayRecords.count { it.status == "حاضر" }
+    var confirmCheckOutRecord by remember { mutableStateOf<AttendanceWithGames?>(null) }
 
     Scaffold(
         floatingActionButton = {
@@ -118,69 +102,61 @@ fun AttendanceScreen() {
                 .padding(padding)
                 .fillMaxSize()
         ) {
-            // Summary Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("حضور اليوم", style = MaterialTheme.typography.bodyMedium)
-                        Text("$totalAttendance", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("بالداخل حالياً", style = MaterialTheme.typography.bodyMedium)
-                        Text("$currentlyInside", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    }
-                }
-            }
-
-            // Filters
+            // Stat Cards
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                StatCard(
+                    icon = Icons.Default.CheckCircle,
+                    value = "${uiState.totalToday}",
+                    label = "حضور اليوم",
+                    accentColor = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f)
+                )
+                StatCard(
+                    icon = Icons.Default.Home,
+                    value = "${uiState.currentlyInside}",
+                    label = "بالداخل حالياً",
+                    accentColor = StatusColorsLight.Active,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            // Filters
+            val filters = listOf("الكل", "حاضر", "منصرف")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 filters.forEach { filter ->
-                    val isSelected = selectedFilter == filter
-                    Button(
-                        onClick = { selectedFilter = filter },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    ) {
-                        Text(filter)
-                    }
+                    val isSelected = uiState.selectedFilter == filter
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { viewModel.onFilterSelected(filter) },
+                        label = { Text(filter) }
+                    )
                 }
             }
 
             // List
-            if (filteredRecords.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize().padding(top = 16.dp), contentAlignment = Alignment.Center) {
-                    Text("لا يوجد سجلات حضور اليوم.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+            if (uiState.todayAttendance.isEmpty()) {
+                EmptyState(icon = Icons.Default.CheckCircle, title = "لا يوجد حضور", subtitle = "لم يتم تسجيل أي حضور اليوم في هذا القسم.")
             } else {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(top = 8.dp)
                 ) {
-                    items(filteredRecords, key = { it.id }) { record ->
+                    items(uiState.todayAttendance, key = { it.attendance.id }) { item ->
                         AttendanceItem(
-                            record = record,
-                            onCheckOut = { confirmCheckOutRecord = record }
+                            record = item,
+                            members = uiState.members,
+                            onCheckOut = { confirmCheckOutRecord = item }
                         )
                     }
                 }
@@ -190,56 +166,23 @@ fun AttendanceScreen() {
 
     if (showCheckInDialog) {
         CheckInDialog(
+            members = uiState.members,
             onDismiss = { showCheckInDialog = false },
-            onSaveNew = { member, weight, notes, games ->
-                val newId = (globalAttendance.maxOfOrNull { it.id } ?: 0) + 1
-                globalAttendance.add(
-                    Attendance(
-                        id = newId,
-                        memberId = member.id,
-                        memberName = member.name,
-                        checkInTime = getCurrentTime(),
-                        checkOutTime = null,
-                        status = "حاضر",
-                        date = getCurrentDate(),
-                        games = games,
-                        weight = weight,
-                        notes = notes
-                    )
-                )
-                if (weight != null) {
-                    val newMeasId = (globalMeasurements.maxOfOrNull { it.id } ?: 0) + 1
-                    globalMeasurements.add(MemberMeasurement(newMeasId, member.id, getCurrentDate(), weight, notes))
-                }
-                showCheckInDialog = false
-            },
-            onCheckOutExisting = { existingRecord ->
-                val index = globalAttendance.indexOfFirst { it.id == existingRecord.id }
-                if (index != -1) {
-                    globalAttendance[index] = existingRecord.copy(
-                        checkOutTime = getCurrentTime(),
-                        status = "منصرف"
-                    )
-                }
-                showCheckInDialog = false
-            }
+            viewModel = viewModel,
+            onSuccess = { showCheckInDialog = false }
         )
     }
 
     if (confirmCheckOutRecord != null) {
+        val member = uiState.members.find { it.id == confirmCheckOutRecord!!.attendance.memberId }
+        val memberName = member?.name ?: "العضو"
         AlertDialog(
             onDismissRequest = { confirmCheckOutRecord = null },
             title = { Text("تأكيد تسجيل الانصراف") },
-            text = { Text("هل أنت متأكد أنك تريد تسجيل انصراف ${confirmCheckOutRecord?.memberName}؟") },
+            text = { Text("هل أنت متأكد أنك تريد تسجيل انصراف $memberName؟") },
             confirmButton = {
                 TextButton(onClick = {
-                    val index = globalAttendance.indexOfFirst { it.id == confirmCheckOutRecord?.id }
-                    if (index != -1) {
-                        globalAttendance[index] = globalAttendance[index].copy(
-                            checkOutTime = getCurrentTime(),
-                            status = "منصرف"
-                        )
-                    }
+                    viewModel.checkOut(confirmCheckOutRecord!!.attendance.id)
                     confirmCheckOutRecord = null
                 }) {
                     Text("تسجيل انصراف")
@@ -253,62 +196,60 @@ fun AttendanceScreen() {
 }
 
 @Composable
-fun AttendanceItem(record: Attendance, onCheckOut: () -> Unit) {
-    ElevatedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+fun AttendanceItem(
+    record: AttendanceWithGames,
+    members: List<MemberEntity>,
+    onCheckOut: () -> Unit
+) {
+    val member = members.find { it.id == record.attendance.memberId }
+    val memberName = member?.name ?: "عضو #${record.attendance.memberId}"
+    val isInside = record.attendance.checkOut == null
+    val statusText = if (isInside) "حاضر" else "منصرف"
+
+    AppCard(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = record.memberName,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                val statusColor = if (record.status == "حاضر") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                Text(
-                    text = record.status,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = statusColor
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    MemberAvatar(name = memberName)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = memberName,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                StatusChip(text = statusText, status = statusText)
             }
 
             if (record.games.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "الألعاب: ${record.games.joinToString("، ") { it.gameName }}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.secondary
-                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    record.games.forEach { game ->
+                        GameChip(name = game.name)
+                    }
+                }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text(text = "وقت الحضور: ${record.checkInTime}", style = MaterialTheme.typography.bodyMedium)
-                    if (record.checkOutTime != null) {
-                        Text(text = "وقت الانصراف: ${record.checkOutTime}", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    if (record.weight != null) {
-                        Text(text = "الوزن: ${record.weight} كجم", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    if (record.notes.isNotEmpty()) {
-                        Text(text = "ملاحظات: ${record.notes}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(text = "وقت الحضور: ${formatTime(record.attendance.checkIn)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (record.attendance.checkOut != null) {
+                        Text(text = "وقت الانصراف: ${formatTime(record.attendance.checkOut)}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                if (record.status == "حاضر") {
+                if (isInside) {
                     OutlinedButton(onClick = onCheckOut) {
                         Text("تسجيل انصراف")
                     }
@@ -320,82 +261,61 @@ fun AttendanceItem(record: Attendance, onCheckOut: () -> Unit) {
 
 @Composable
 fun CheckInDialog(
+    members: List<MemberEntity>,
     onDismiss: () -> Unit,
-    onSaveNew: (member: Member, weight: Double?, notes: String, selectedGames: List<AttendanceGameRef>) -> Unit,
-    onCheckOutExisting: (Attendance) -> Unit
+    viewModel: AttendanceViewModel,
+    onSuccess: () -> Unit
 ) {
-    var selectedMember by remember { mutableStateOf<Member?>(null) }
+    val scope = rememberCoroutineScope()
+
+    var selectedMember by remember { mutableStateOf<MemberEntity?>(null) }
     var memberMenuExpanded by remember { mutableStateOf(false) }
+
+    var suggestedInfo by remember { mutableStateOf<SuggestedGamesInfo?>(null) }
+    val selectedGameIds = remember { mutableStateListOf<Long>() }
 
     var weightStr by remember { mutableStateOf("") }
     var notesStr by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    val todayDate = getCurrentDate()
-    val todayDay = getArabicDayOfWeek(0)
-
-    // Check if selected member is currently checked in today
-    val activeRecord = remember(selectedMember) {
-        if (selectedMember == null) null
-        else globalAttendance.find { 
-            it.memberId == selectedMember!!.id && 
-            it.date == todayDate && 
-            it.status == "حاضر" 
-        }
-    }
-    val isCheckedIn = activeRecord != null
-
-    // Active subscriptions for selected member
-    val memberActiveSubs = remember(selectedMember) {
-        if (selectedMember == null) emptyList()
-        else globalSubscriptions.filter { 
-            it.memberId == selectedMember!!.id && getSubscriptionStatus(it) == "نشط" 
+    LaunchedEffect(selectedMember) {
+        val m = selectedMember
+        if (m != null) {
+            val info = viewModel.getSuggestedGamesForMember(m.id)
+            suggestedInfo = info
+            selectedGameIds.clear()
+            selectedGameIds.addAll(info.suggestedGameIds)
+        } else {
+            suggestedInfo = null
+            selectedGameIds.clear()
         }
     }
 
-    // Today's scheduled game IDs for selected member
-    val todayScheduledGameIds = remember(selectedMember) {
-        if (selectedMember == null) emptySet()
-        else globalSchedules
-            .filter { it.memberId == selectedMember!!.id && it.dayOfWeek == todayDay }
-            .map { it.gameId }
-            .toSet()
-    }
-
-    // Track selected subscription IDs for check-in
-    val selectedSubIds = remember(selectedMember) {
-        mutableStateListOf<Int>().apply {
-            if (selectedMember != null) {
-                val activeForMember = globalSubscriptions.filter { 
-                    it.memberId == selectedMember!!.id && getSubscriptionStatus(it) == "نشط" 
-                }
-                val todayDayStr = getArabicDayOfWeek(0)
-                val schedGameIds = globalSchedules
-                    .filter { it.memberId == selectedMember!!.id && it.dayOfWeek == todayDayStr }
-                    .map { it.gameId }
-                    .toSet()
-
-                val suggested = activeForMember.filter { it.gameId in schedGameIds }
-                if (suggested.isNotEmpty()) {
-                    addAll(suggested.map { it.id })
-                } else {
-                    addAll(activeForMember.map { it.id })
-                }
-            }
+    LaunchedEffect(viewModel.checkInError) {
+        viewModel.checkInError.collect { err ->
+            errorMessage = err
         }
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isCheckedIn) "تسجيل انصراف عضو" else "تسجيل حضور جديد") },
+        title = { Text("تسجيل حضور جديد") },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                // Member Selection Dropdown
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+
+                // Member Dropdown
                 Box {
                     OutlinedButton(
                         onClick = { memberMenuExpanded = true },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     ) {
                         Text(selectedMember?.name ?: "اختر العضو *")
                     }
@@ -403,15 +323,16 @@ fun CheckInDialog(
                         expanded = memberMenuExpanded,
                         onDismissRequest = { memberMenuExpanded = false }
                     ) {
-                        if (globalMembers.isEmpty()) {
+                        if (members.isEmpty()) {
                             DropdownMenuItem(text = { Text("لا يوجد أعضاء") }, onClick = { memberMenuExpanded = false })
                         } else {
-                            globalMembers.forEach { m ->
+                            members.forEach { m ->
                                 DropdownMenuItem(
                                     text = { Text(m.name) },
                                     onClick = {
                                         selectedMember = m
                                         memberMenuExpanded = false
+                                        errorMessage = null
                                     }
                                 )
                             }
@@ -419,105 +340,85 @@ fun CheckInDialog(
                     }
                 }
 
-                if (selectedMember != null) {
-                    if (isCheckedIn) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text("العضو متواجد بالداخل حالياً!", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
-                                Text("وقت الحضور: ${activeRecord.checkInTime}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
-                            }
-                        }
+                if (selectedMember != null && suggestedInfo != null) {
+                    val info = suggestedInfo!!
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("الألعاب المتاحة والاشتراكات:", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+
+                    if (info.activeSubscriptions.isEmpty()) {
+                        Text("تحذير: لا توجد اشتراكات نشطة لهذا العضو.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(vertical = 4.dp))
                     } else {
-                        // Games Selection Section
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("الألعاب المتاحة والاشتراكات:", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        info.activeSubscriptions.forEach { sub ->
+                            val isChecked = selectedGameIds.contains(sub.gameId)
+                            val hasWarn = info.hasWarningForGame[sub.gameId] == true
 
-                        if (memberActiveSubs.isEmpty()) {
-                            Text("لا توجد اشتراكات نشطة لهذا العضو.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(vertical = 4.dp))
-                        } else {
-                            memberActiveSubs.forEach { sub ->
-                                val used = getUsedSessions(sub.id)
-                                val remaining = (sub.totalSessions - used).coerceAtLeast(0)
-                                val isScheduledToday = sub.gameId in todayScheduledGameIds
-                                val isChecked = selectedSubIds.contains(sub.id)
-
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            if (isChecked) selectedSubIds.remove(sub.id)
-                                            else selectedSubIds.add(sub.id)
-                                        }
-                                        .padding(vertical = 4.dp)
-                                ) {
-                                    Checkbox(
-                                        checked = isChecked,
-                                        onCheckedChange = { checked ->
-                                            if (checked) selectedSubIds.add(sub.id)
-                                            else selectedSubIds.remove(sub.id)
-                                        }
-                                    )
-                                    Column(modifier = Modifier.padding(start = 8.dp)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(sub.gameName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
-                                            if (isScheduledToday) {
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Surface(
-                                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                                    shape = MaterialTheme.shapes.extraSmall
-                                                ) {
-                                                    Text("جدول اليوم", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), color = MaterialTheme.colorScheme.onPrimaryContainer)
-                                                }
-                                            }
-                                        }
-                                        Text("الجلسات: $used مستخدمة / $remaining متبقية من ${sub.totalSessions}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        if (isChecked) selectedGameIds.remove(sub.gameId)
+                                        else selectedGameIds.add(sub.gameId)
+                                    }
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                Checkbox(
+                                    checked = isChecked,
+                                    onCheckedChange = { checked ->
+                                        if (checked) selectedGameIds.add(sub.gameId)
+                                        else selectedGameIds.remove(sub.gameId)
+                                    }
+                                )
+                                Column(modifier = Modifier.padding(start = 8.dp)) {
+                                    Text("لعبة #${sub.gameId}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                    if (hasWarn) {
+                                        Text("تنبيه: غير مجدولة اليوم، ولكن يوجد اشتراك نشط", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                                     }
                                 }
                             }
                         }
-
-                        // Optional Weight & Notes
-                        Spacer(modifier = Modifier.height(12.dp))
-                        OutlinedTextField(
-                            value = weightStr,
-                            onValueChange = { weightStr = it },
-                            label = { Text("الوزن - كجم (اختياري)") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                        )
-                        OutlinedTextField(
-                            value = notesStr,
-                            onValueChange = { notesStr = it },
-                            label = { Text("ملاحظات الزيارة (اختياري)") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                        )
                     }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = weightStr,
+                        onValueChange = { weightStr = it },
+                        label = { Text("الوزن - كجم (اختياري)") },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    )
+                    OutlinedTextField(
+                        value = notesStr,
+                        onValueChange = { notesStr = it },
+                        label = { Text("ملاحظات الزيارة (اختياري)") },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    )
                 }
             }
         },
         confirmButton = {
-            TextButton(
+            Button(
                 onClick = {
-                    if (selectedMember != null) {
-                        if (isCheckedIn) {
-                            onCheckOutExisting(activeRecord)
-                        } else {
-                            val chosenSubs = memberActiveSubs.filter { selectedSubIds.contains(it.id) }
-                            val attendanceGames = chosenSubs.map { AttendanceGameRef(it.id, it.gameName) }
-                            val parsedWeight = weightStr.toDoubleOrNull()
-                            onSaveNew(selectedMember!!, parsedWeight, notesStr, attendanceGames)
-                        }
+                    val m = selectedMember
+                    if (m != null && selectedGameIds.isNotEmpty()) {
+                        val parsedWeight = weightStr.toDoubleOrNull()
+                        viewModel.checkIn(
+                            memberId = m.id,
+                            gameIds = selectedGameIds,
+                            weight = parsedWeight,
+                            notes = notesStr.ifBlank { null }
+                        )
+                        onSuccess()
+                    } else if (selectedGameIds.isEmpty()) {
+                        errorMessage = "يرجى اختيار لعبة واحدة على الأقل."
                     }
                 },
-                enabled = selectedMember != null && (isCheckedIn || (memberActiveSubs.isNotEmpty() && selectedSubIds.isNotEmpty()))
+                enabled = selectedMember != null && selectedGameIds.isNotEmpty()
             ) {
-                Text(if (isCheckedIn) "تسجيل انصراف" else "تسجيل حضور")
+                Text("تسجيل حضور")
             }
         },
         dismissButton = {
@@ -526,4 +427,12 @@ fun CheckInDialog(
             }
         }
     )
+}
+
+@Preview(showBackground = true)
+@Composable
+fun AttendanceScreenPreview() {
+    SimpleCalcTheme {
+        AttendanceScreen()
+    }
 }

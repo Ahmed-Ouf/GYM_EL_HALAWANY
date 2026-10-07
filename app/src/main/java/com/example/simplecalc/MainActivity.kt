@@ -5,9 +5,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,20 +22,25 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -66,7 +78,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import com.example.simplecalc.ui.components.AppCard
+import com.example.simplecalc.ui.components.EmptyState
+import com.example.simplecalc.ui.components.SectionHeader
+import com.example.simplecalc.ui.components.StatCard
+import com.example.simplecalc.ui.components.StatusChip
 import com.example.simplecalc.ui.theme.SimpleCalcTheme
+import com.example.simplecalc.ui.theme.StatusColorsDark
+import com.example.simplecalc.ui.theme.StatusColorsLight
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.simplecalc.ui.AppViewModelProvider
+import com.example.simplecalc.ui.viewmodel.AttendanceViewModel
+import com.example.simplecalc.ui.viewmodel.DashboardViewModel
+import com.example.simplecalc.ui.viewmodel.MembersViewModel
+import com.example.simplecalc.ui.viewmodel.PaymentsViewModel
+import com.example.simplecalc.ui.viewmodel.SubscriptionsViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -79,18 +106,11 @@ class MainActivity : ComponentActivity() {
         
         val locale = Locale("ar")
         Locale.setDefault(locale)
-        val config = Configuration(resources.configuration)
-        config.setLocale(locale)
-        baseContext.resources.updateConfiguration(config, baseContext.resources.displayMetrics)
         
         setContent {
-            val config = Configuration(LocalConfiguration.current)
-            config.setLocale(locale)
-            
             SimpleCalcTheme {
                 CompositionLocalProvider(
-                    LocalLayoutDirection provides LayoutDirection.Rtl,
-                    LocalConfiguration provides config
+                    LocalLayoutDirection provides LayoutDirection.Rtl
                 ) {
                     GymManagementApp()
                 }
@@ -141,12 +161,20 @@ fun GymManagementApp() {
                 .padding(innerPadding)
                 .consumeWindowInsets(innerPadding)
         ) {
-            when (currentDestination) {
-                GymDestination.Dashboard -> DashboardScreen()
-                GymDestination.Members -> MembersScreen()
-                GymDestination.Subscriptions -> SubscriptionsScreen()
-                GymDestination.Attendance -> AttendanceScreen()
-                GymDestination.Admin -> AdminScreen()
+            AnimatedContent(
+                targetState = currentDestination,
+                transitionSpec = {
+                    (fadeIn() + slideInHorizontally { it / 8 }).togetherWith(fadeOut() + slideOutHorizontally { -it / 8 })
+                },
+                label = "ScreenTransition"
+            ) { destination ->
+                when (destination) {
+                    GymDestination.Dashboard -> DashboardScreen()
+                    GymDestination.Members -> MembersScreen()
+                    GymDestination.Subscriptions -> SubscriptionsScreen()
+                    GymDestination.Attendance -> AttendanceScreen()
+                    GymDestination.Admin -> AdminScreen()
+                }
             }
         }
     }
@@ -154,7 +182,7 @@ fun GymManagementApp() {
 
 fun isExpiringSoon(endDate: String): Boolean {
     return try {
-        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val end = sdf.parse(endDate) ?: return false
         val diff = end.time - Date().time
         val days = TimeUnit.MILLISECONDS.toDays(diff)
@@ -163,78 +191,109 @@ fun isExpiringSoon(endDate: String): Boolean {
 }
 
 @Composable
-fun DashboardScreen() {
+fun DashboardScreen(
+    viewModel: DashboardViewModel = viewModel(factory = AppViewModelProvider.Factory)
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
     var showAddMember by remember { mutableStateOf(false) }
     var showAddSubscription by remember { mutableStateOf(false) }
     var showAddPayment by remember { mutableStateOf(false) }
     var showCheckIn by remember { mutableStateOf(false) }
 
-    val todayDate = getCurrentDate()
-    val totalMembers = globalMembers.size
-    val activeMembers = globalMembers.count { it.status == "نشط" }
-    
-    val todayRecords = globalAttendance.filter { it.date == todayDate }
-    val todayCheckIns = todayRecords.size
-    val currentlyInside = todayRecords.count { it.status == "حاضر" }
-    val sessionsUsedToday = todayRecords.sumOf { it.games.size }
-    
-    val todayPay = globalPayments.filter { it.date == todayDate }.sumOf { it.amount }
-    
-    val expSoon = globalSubscriptions.count { it.status == "نشط" && isExpiringSoon(it.endDate) }
+    val membersViewModel: MembersViewModel = viewModel(factory = AppViewModelProvider.Factory)
+    val subsViewModel: SubscriptionsViewModel = viewModel(factory = AppViewModelProvider.Factory)
+    val paymentsViewModel: PaymentsViewModel = viewModel(factory = AppViewModelProvider.Factory)
+    val attendanceViewModel: AttendanceViewModel = viewModel(factory = AppViewModelProvider.Factory)
+
+    val subsUiState by subsViewModel.uiState.collectAsStateWithLifecycle()
+    val paymentsUiState by paymentsViewModel.uiState.collectAsStateWithLifecycle()
+    val attendanceUiState by attendanceViewModel.uiState.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(16.dp)
     ) {
-        // Summary Cards
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            DashboardWidget(title = "إجمالي الأعضاء", value = totalMembers.toString(), modifier = Modifier.weight(1f))
-            DashboardWidget(title = "الأعضاء النشطين", value = activeMembers.toString(), modifier = Modifier.weight(1f))
+        SectionHeader("لوحة التحكم")
+
+        // 2x2 Grid of StatCards
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            StatCard(icon = Icons.Default.Person, value = "${uiState.totalMembers}", label = "إجمالي الأعضاء", accentColor = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+            StatCard(icon = Icons.Default.CheckCircle, value = "${uiState.activeMembers}", label = "أعضاء نشطين", accentColor = StatusColorsLight.Active, modifier = Modifier.weight(1f))
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            DashboardWidget(title = "حضور اليوم", value = todayCheckIns.toString(), modifier = Modifier.weight(1f))
-            DashboardWidget(title = "بالداخل حالياً", value = currentlyInside.toString(), modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            StatCard(icon = Icons.Default.Home, value = "${uiState.todayCheckIns}", label = "حضور اليوم", accentColor = MaterialTheme.colorScheme.secondary, modifier = Modifier.weight(1f))
+            StatCard(icon = Icons.Default.ShoppingCart, value = "$${uiState.todayPay}", label = "مدفوعات اليوم", accentColor = StatusColorsLight.Warning, modifier = Modifier.weight(1f))
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            DashboardWidget(title = "جلسات مستخدمة اليوم", value = sessionsUsedToday.toString(), modifier = Modifier.weight(1f))
-            DashboardWidget(title = "اشتراكات تنتهي قريباً", value = expSoon.toString(), modifier = Modifier.weight(1f), colorOverride = MaterialTheme.colorScheme.error)
+
+        if (uiState.expSoonCount > 0) {
+            Spacer(modifier = Modifier.height(12.dp))
+            AppCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Warning, contentDescription = null, tint = StatusColorsLight.Warning, modifier = Modifier.size(24.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "تنتهي صلاحية ${uiState.expSoonCount} اشتراك(ات) خلال 7 أيام قادمة.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        DashboardWidget(title = "مدفوعات اليوم", value = "$$todayPay", modifier = Modifier.fillMaxWidth())
 
         Spacer(modifier = Modifier.height(24.dp))
-        Text("إجراءات سريعة", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(8.dp))
+        SectionHeader("إجراءات سريعة")
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-            QuickActionButton(icon = Icons.Default.Person, label = "عضو") { showAddMember = true }
-            QuickActionButton(icon = Icons.AutoMirrored.Filled.List, label = "اشتراك") { showAddSubscription = true }
-            QuickActionButton(icon = Icons.Default.ShoppingCart, label = "دفع") { showAddPayment = true }
-            QuickActionButton(icon = Icons.Default.CheckCircle, label = "حضور") { showCheckIn = true }
+            Box(modifier = Modifier.weight(1f)) { QuickActionSquare(icon = Icons.Default.Person, label = "عضو") { showAddMember = true } }
+            Box(modifier = Modifier.weight(1f)) { QuickActionSquare(icon = Icons.AutoMirrored.Filled.List, label = "اشتراك") { showAddSubscription = true } }
+            Box(modifier = Modifier.weight(1f)) { QuickActionSquare(icon = Icons.Default.ShoppingCart, label = "دفع") { showAddPayment = true } }
+            Box(modifier = Modifier.weight(1f)) { QuickActionSquare(icon = Icons.Default.CheckCircle, label = "حضور") { showCheckIn = true } }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
-        Text("النشاط الأخير", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(8.dp))
-        val recentActivities = listOfNotNull(
-            globalMembers.lastOrNull()?.let { "عضو جديد: ${it.name}" },
-            globalSubscriptions.lastOrNull()?.let { "اشتراك جديد: ${it.gameName} لـ ${it.memberName}" },
-            globalPayments.lastOrNull()?.let { "دفعة: $${it.amount} من ${it.memberName}" },
-            globalAttendance.lastOrNull()?.let { "تسجيل حضور: ${it.memberName} في ${it.checkInTime}" }
-        )
-        
-        if (recentActivities.isEmpty()) {
-            Text("لا يوجد نشاط أخير.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SectionHeader("حالة الاشتراكات")
+        AppCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                val isDark = isSystemInDarkTheme()
+                StatusItem(
+                    "نشط", uiState.activeSubsCount,
+                    color = if (isDark) StatusColorsDark.Active else StatusColorsLight.Active,
+                    backgroundColor = if (isDark) StatusColorsDark.ActiveContainer else StatusColorsLight.ActiveContainer,
+                    modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
+                )
+                StatusItem(
+                    "قادم", uiState.upcomingSubsCount,
+                    color = if (isDark) StatusColorsDark.Warning else StatusColorsLight.Warning,
+                    backgroundColor = if (isDark) StatusColorsDark.WarningContainer else StatusColorsLight.WarningContainer,
+                    modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
+                )
+                StatusItem(
+                    "منتهي", uiState.expiredSubsCount,
+                    color = if (isDark) StatusColorsDark.Expired else StatusColorsLight.Expired,
+                    backgroundColor = if (isDark) StatusColorsDark.ExpiredContainer else StatusColorsLight.ExpiredContainer,
+                    modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        SectionHeader("النشاط الأخير")
+        if (uiState.recentActivities.isEmpty()) {
+            EmptyState(icon = Icons.Default.Notifications, title = "لا يوجد نشاط", subtitle = "لم يتم تسجيل أي أحداث مؤخراً.")
         } else {
-            recentActivities.forEach { activity ->
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Text(text = activity, modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium)
+            uiState.recentActivities.forEach { text ->
+                AppCard(modifier = Modifier.padding(bottom = 8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Notifications, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(text = text, style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
             }
         }
@@ -246,100 +305,73 @@ fun DashboardScreen() {
         AddMemberDialog(
             onDismiss = { showAddMember = false },
             onSave = { name, phone, gender, dob, joinDate ->
-                val newId = (globalMembers.maxOfOrNull { it.id } ?: 0) + 1
-                globalMembers.add(
-                    Member(newId, name, phone, gender, dob, joinDate, "نشط", "2025-12-31")
-                )
+                val birthEpoch = if (dob.isBlank()) null else parseEpochDay(dob)
+                val joinEpoch = if (joinDate.isBlank()) TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis()) else parseEpochDay(joinDate)
+                membersViewModel.addMember(name, phone, gender, birthEpoch, joinEpoch)
                 showAddMember = false
             }
         )
     }
     if (showAddSubscription) {
         AddSubscriptionDialog(
+            members = subsUiState.members,
+            games = subsUiState.games,
             onDismiss = { showAddSubscription = false },
-            onSave = { member, game, type, startDate, endDate, price, totalSessions ->
-                val newId = (globalSubscriptions.maxOfOrNull { it.id } ?: 0) + 1
-                globalSubscriptions.add(
-                    Subscription(newId, member.id, member.name, game.id, game.name, type, startDate, endDate, price.toDoubleOrNull() ?: game.price, totalSessions, "نشط")
-                )
-                showAddSubscription = false
-            }
+            viewModel = subsViewModel,
+            onSuccess = { showAddSubscription = false }
         )
     }
     if (showAddPayment) {
         AddPaymentDialog(
+            members = paymentsUiState.members,
+            subscriptions = paymentsUiState.subscriptions,
             onDismiss = { showAddPayment = false },
-            onSave = { member, subscription, amount, date, method, notes ->
-                val newId = (globalPayments.maxOfOrNull { it.id } ?: 0) + 1
-                globalPayments.add(
-                    Payment(newId, member.id, member.name, subscription.id, subscription.gameName, amount, date, method, notes)
-                )
+            onSave = { memberId, subscriptionId, amount, method, date, notes ->
+                paymentsViewModel.recordPayment(memberId, subscriptionId, amount, method, parseEpochDay(date), notes)
                 showAddPayment = false
             }
         )
     }
     if (showCheckIn) {
         CheckInDialog(
+            members = attendanceUiState.members,
             onDismiss = { showCheckIn = false },
-            onSaveNew = { member, weight, notes, games ->
-                val newId = (globalAttendance.maxOfOrNull { it.id } ?: 0) + 1
-                globalAttendance.add(
-                    Attendance(newId, member.id, member.name, getCurrentTime(), null, "حاضر", getCurrentDate(), games, weight, notes)
-                )
-                if (weight != null) {
-                    val newMeasId = (globalMeasurements.maxOfOrNull { it.id } ?: 0) + 1
-                    globalMeasurements.add(MemberMeasurement(newMeasId, member.id, getCurrentDate(), weight, notes))
-                }
-                showCheckIn = false
-            },
-            onCheckOutExisting = { existingRecord ->
-                val index = globalAttendance.indexOfFirst { it.id == existingRecord.id }
-                if (index != -1) {
-                    globalAttendance[index] = existingRecord.copy(
-                        checkOutTime = getCurrentTime(),
-                        status = "منصرف"
-                    )
-                }
-                showCheckIn = false
-            }
+            viewModel = attendanceViewModel,
+            onSuccess = { showCheckIn = false }
         )
     }
 }
 
+
+
 @Composable
-fun DashboardWidget(title: String, value: String, modifier: Modifier = Modifier, colorOverride: Color? = null) {
-    ElevatedCard(
-        modifier = modifier,
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+fun StatusItem(label: String, count: Int, color: Color, backgroundColor: Color = color.copy(alpha = 0.12f), modifier: Modifier = Modifier) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .background(backgroundColor, shape = MaterialTheme.shapes.medium)
+            .padding(vertical = 12.dp, horizontal = 16.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(text = title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = value,
-                style = MaterialTheme.typography.headlineSmall,
-                color = colorOverride ?: MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        Text("$count", style = MaterialTheme.typography.headlineMedium, color = color, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = color)
     }
 }
 
 @Composable
-fun QuickActionButton(icon: ImageVector, label: String, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        FilledTonalIconButton(
-            onClick = onClick,
-            modifier = Modifier.padding(4.dp)
+fun QuickActionSquare(icon: ImageVector, label: String, onClick: () -> Unit) {
+    AppCard(
+        modifier = Modifier.padding(4.dp),
+        onClick = onClick
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Icon(icon, contentDescription = label)
+            Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
         }
-        Text(label, style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -369,7 +401,7 @@ fun DatePickerField(
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
-                        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
                         onValueChange(sdf.format(Date(millis)))
                     }
                     showDatePicker = false
@@ -397,11 +429,12 @@ fun DatePickerField(
     }
 
     OutlinedTextField(
-        value = value,
+        value = formatDisplayDate(value),
         onValueChange = {},
         label = { Text(label) },
         readOnly = true,
         isError = isError,
+        shape = MaterialTheme.shapes.medium,
         interactionSource = interactionSource,
         trailingIcon = {
             IconButton(onClick = { showDatePicker = true }) {
@@ -410,6 +443,18 @@ fun DatePickerField(
         },
         modifier = modifier.fillMaxWidth()
     )
+}
+
+fun formatDisplayDate(dateStr: String): String {
+    if (dateStr.isBlank()) return ""
+    return try {
+        val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val date = parser.parse(dateStr) ?: return dateStr
+        val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        "\u200E" + formatter.format(date)
+    } catch (e: Exception) {
+        "\u200E$dateStr"
+    }
 }
 
 @Preview(showBackground = true)

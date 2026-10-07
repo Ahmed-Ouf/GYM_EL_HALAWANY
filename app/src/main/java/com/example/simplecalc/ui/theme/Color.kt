@@ -1,50 +1,82 @@
 package com.example.simplecalc.ui.theme
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 
-val PrimaryLight = Color(0xFF006874)
+val PrimaryLight = Color(0xFF0F766E)
 val OnPrimaryLight = Color(0xFFFFFFFF)
-val PrimaryContainerLight = Color(0xFF97F0FF)
-val OnPrimaryContainerLight = Color(0xFF001F24)
-
-val SecondaryLight = Color(0xFF4A6267)
+val SecondaryLight = Color(0xFF4338CA)
 val OnSecondaryLight = Color(0xFFFFFFFF)
-val SecondaryContainerLight = Color(0xFFCDE7EC)
-val OnSecondaryContainerLight = Color(0xFF051F23)
+val BackgroundLight = Color(0xFFF8FAFC)
+val SurfaceLight = Color(0xFFFFFFFF)
+val OnSurfaceLight = Color(0xFF0F172A)
+val OnSurfaceVariantLight = Color(0xFF64748B)
+val OutlineLight = Color(0xFFE2E8F0)
+val ErrorLight = Color(0xFFDC2626)
 
-val TertiaryLight = Color(0xFF525E7D)
-val OnTertiaryLight = Color(0xFFFFFFFF)
-val TertiaryContainerLight = Color(0xFFDAE2FF)
-val OnTertiaryContainerLight = Color(0xFF0E1B37)
+val PrimaryDark = Color(0xFF2DD4BF)
+val SecondaryDark = Color(0xFF818CF8)
+val BackgroundDark = Color(0xFF0F172A)
+val SurfaceDark = Color(0xFF1E293B)
+val OnSurfaceDark = Color(0xFFF1F5F9)
+val OnSurfaceVariantDark = Color(0xFF94A3B8)
+val OutlineDark = Color(0xFF334155)
 
-val BackgroundLight = Color(0xFFF8FDFF)
-val OnBackgroundLight = Color(0xFF191C1D)
-val SurfaceLight = Color(0xFFF8FDFF)
-val OnSurfaceLight = Color(0xFF191C1D)
-val SurfaceVariantLight = Color(0xFFDBE4E6)
-val OnSurfaceVariantLight = Color(0xFF3F484A)
-val OutlineLight = Color(0xFF6F797A)
+object StatusColorsLight {
+    val Active = Color(0xFF16A34A)
+    val ActiveContainer = Color(0xFF16A34A).copy(alpha = 0.12f)
+    val Warning = Color(0xFFF59E0B)
+    val WarningContainer = Color(0xFFF59E0B).copy(alpha = 0.12f)
+    val Expired = Color(0xFFDC2626)
+    val ExpiredContainer = Color(0xFFDC2626).copy(alpha = 0.12f)
+}
 
-// Dark Theme Colors
-val PrimaryDark = Color(0xFF4FD8EB)
-val OnPrimaryDark = Color(0xFF00363D)
-val PrimaryContainerDark = Color(0xFF004F58)
-val OnPrimaryContainerDark = Color(0xFF97F0FF)
+object StatusColorsDark {
+    val Active = Color(0xFF4ADE80)
+    val ActiveContainer = Color(0xFF4ADE80).copy(alpha = 0.12f)
+    val Warning = Color(0xFFFBBF24)
+    val WarningContainer = Color(0xFFFBBF24).copy(alpha = 0.12f)
+    val Expired = Color(0xFFF87171)
+    val ExpiredContainer = Color(0xFFF87171).copy(alpha = 0.12f)
+}
 
-val SecondaryDark = Color(0xFFB1CBD0)
-val OnSecondaryDark = Color(0xFF1C3438)
-val SecondaryContainerDark = Color(0xFF334B4F)
-val OnSecondaryContainerDark = Color(0xFFCDE7EC)
-
-val TertiaryDark = Color(0xFFBAC6EA)
-val OnTertiaryDark = Color(0xFF24304D)
-val TertiaryContainerDark = Color(0xFF3B4664)
-val OnTertiaryContainerDark = Color(0xFFDAE2FF)
-
-val BackgroundDark = Color(0xFF191C1D)
-val OnBackgroundDark = Color(0xFFE1E3E3)
-val SurfaceDark = Color(0xFF191C1D)
-val OnSurfaceDark = Color(0xFFE1E3E3)
-val SurfaceVariantDark = Color(0xFF3F484A)
-val OnSurfaceVariantDark = Color(0xFFBFC8CA)
-val OutlineDark = Color(0xFF899294)
+@Preview(showBackground = true)
+@Composable
+fun ColorPreview() {
+    Column(modifier = Modifier.padding(16.dp)) {
+        val palette = listOf(
+            "Primary" to PrimaryLight,
+            "Secondary" to SecondaryLight,
+            "Active" to StatusColorsLight.Active,
+            "Warning" to StatusColorsLight.Warning,
+            "Expired" to StatusColorsLight.Expired
+        )
+        palette.forEach { (name, color) ->
+            Row(
+                modifier = Modifier.padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(color)
+                )
+                Text(
+                    text = name,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+        }
+    }
+}

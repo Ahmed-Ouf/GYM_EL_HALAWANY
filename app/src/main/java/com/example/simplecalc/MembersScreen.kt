@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -28,25 +30,19 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -54,58 +50,47 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.simplecalc.data.local.entity.MemberEntity
+import com.example.simplecalc.data.local.entity.MemberMeasurementEntity
+import com.example.simplecalc.data.local.entity.SubscriptionEntity
+import com.example.simplecalc.ui.AppViewModelProvider
 import com.example.simplecalc.ui.theme.SimpleCalcTheme
+import com.example.simplecalc.ui.components.AppCard
+import com.example.simplecalc.ui.components.EmptyState
+import com.example.simplecalc.ui.components.MemberAvatar
+import com.example.simplecalc.ui.components.SectionHeader
+import com.example.simplecalc.ui.components.StatusChip
+import com.example.simplecalc.ui.viewmodel.MembersUiState
+import com.example.simplecalc.ui.viewmodel.MembersViewModel
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.Calendar
+import java.util.Locale
+import java.util.concurrent.TimeUnit
 
-data class Member(
-    val id: Int,
-    val name: String,
-    val phone: String,
-    val gender: String,
-    val dob: String,
-    val joinDate: String,
-    val status: String,
-    val expiryDate: String
-)
+fun formatEpochDay(epochDay: Long?): String {
+    if (epochDay == null) return ""
+    return try {
+        val date = LocalDate.ofEpochDay(epochDay)
+        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.US)
+        "\u200E" + date.format(formatter)
+    } catch (e: Exception) {
+        ""
+    }
+}
 
-val initialMockMembers = listOf(
-    Member(1, "أحمد محمد", "123-456-7890", "ذكر", "1990-01-01", "2024-01-01", "نشط", "2024-12-31"),
-    Member(2, "سارة أحمد", "098-765-4321", "أنثى", "1995-05-05", "2023-10-15", "غير نشط", "2023-10-15"),
-    Member(3, "خالد محمود", "555-123-4567", "ذكر", "1985-12-08", "2024-06-30", "نشط", "2025-06-30")
-)
-
-data class TrainingSchedule(
-    val id: Int,
-    val memberId: Int,
-    val gameId: Int,
-    val dayOfWeek: String,
-    val trainingNames: List<String>
-)
-
-val globalSchedules = mutableStateListOf(
-    TrainingSchedule(1, 1, 1, "الأحد", listOf("أكتاف")),
-    TrainingSchedule(2, 1, 1, "الإثنين", listOf("بطن")),
-    TrainingSchedule(3, 1, 1, "الثلاثاء", listOf("صدر", "ذراعين")),
-    TrainingSchedule(4, 1, 1, "الأربعاء", listOf("أرجل")),
-    TrainingSchedule(5, 1, 1, "الخميس", listOf("ظهر"))
-)
-
-data class MemberMeasurement(
-    val id: Int,
-    val memberId: Int,
-    val date: String,
-    val weight: Double?,
-    val notes: String
-)
-
-val globalMeasurements = mutableStateListOf<MemberMeasurement>()
-
-val globalMembers = mutableStateListOf(*initialMockMembers.toTypedArray())
+fun parseEpochDay(dateStr: String): Long {
+    return try {
+        LocalDate.parse(dateStr).toEpochDay()
+    } catch (e: Exception) {
+        TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis())
+    }
+}
 
 fun getArabicDayOfWeek(offset: Int = 0): String {
     val calendar = Calendar.getInstance()
@@ -124,48 +109,56 @@ fun getArabicDayOfWeek(offset: Int = 0): String {
 val daysOfWeekArabic = listOf("الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت")
 
 @Composable
-fun MembersScreen() {
-    var selectedMember by remember { mutableStateOf<Member?>(null) }
+fun MembersScreen(
+    viewModel: MembersViewModel = viewModel(factory = AppViewModelProvider.Factory)
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var selectedMemberId by remember { mutableStateOf<Long?>(null) }
     var showScheduleScreen by remember { mutableStateOf(false) }
+
+    val selectedMember = uiState.members.find { it.id == selectedMemberId }
 
     if (showScheduleScreen && selectedMember != null) {
         TrainingScheduleScreen(
-            member = selectedMember!!,
+            member = selectedMember,
             onBack = { showScheduleScreen = false }
         )
     } else if (selectedMember != null) {
         MemberDetailsScreen(
-            member = selectedMember!!,
-            onBack = { selectedMember = null },
+            member = selectedMember,
+            viewModel = viewModel,
+            onBack = { selectedMemberId = null },
             onEdit = { updatedMember ->
-                val index = globalMembers.indexOfFirst { it.id == updatedMember.id }
-                if (index != -1) {
-                    globalMembers[index] = updatedMember
-                }
-                selectedMember = updatedMember
+                viewModel.updateMember(updatedMember)
             },
             onDelete = {
-                globalMembers.removeAll { it.id == selectedMember!!.id }
-                selectedMember = null
+                viewModel.archiveMember(selectedMember.id)
+                selectedMemberId = null
             },
             onShowSchedule = { showScheduleScreen = true }
         )
     } else {
         MembersListScreen(
-            onMemberClick = { selectedMember = it }
+            uiState = uiState,
+            onSearchQueryChange = { viewModel.onSearchQueryChange(it) },
+            onAddMember = { name, phone, gender, dob, joinDate ->
+                val birthEpochDay = if (dob.isBlank()) null else parseEpochDay(dob)
+                val joinEpochDay = if (joinDate.isBlank()) TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis()) else parseEpochDay(joinDate)
+                viewModel.addMember(name, phone, gender, birthEpochDay, joinEpochDay)
+            },
+            onMemberClick = { member -> selectedMemberId = member.id }
         )
     }
 }
 
 @Composable
-fun MembersListScreen(onMemberClick: (Member) -> Unit) {
-    var searchQuery by remember { mutableStateOf("") }
+fun MembersListScreen(
+    uiState: MembersUiState,
+    onSearchQueryChange: (String) -> Unit,
+    onAddMember: (name: String, phone: String, gender: String, dob: String, joinDate: String) -> Unit,
+    onMemberClick: (MemberEntity) -> Unit
+) {
     var showAddDialog by remember { mutableStateOf(false) }
-
-    val filteredMembers = globalMembers.filter {
-        it.name.contains(searchQuery, ignoreCase = true) ||
-        it.phone.contains(searchQuery, ignoreCase = true)
-    }
 
     Scaffold(
         floatingActionButton = {
@@ -184,23 +177,22 @@ fun MembersListScreen(onMemberClick: (Member) -> Unit) {
                 .fillMaxSize()
         ) {
             OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
+                value = uiState.searchQuery,
+                onValueChange = onSearchQueryChange,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 placeholder = { Text("البحث بالاسم أو رقم الهاتف") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = "بحث") },
-                singleLine = true
+                singleLine = true,
+                shape = MaterialTheme.shapes.medium
             )
 
-            if (filteredMembers.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("لم يتم العثور على أعضاء.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+            if (uiState.members.isEmpty()) {
+                EmptyState(icon = Icons.Default.Search, title = "لا يوجد نتائج", subtitle = "لم يتم العثور على أعضاء.")
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(filteredMembers, key = { it.id }) { member ->
+                    items(uiState.members, key = { it.id }) { member ->
                         MemberItem(member = member, onClick = { onMemberClick(member) })
                     }
                 }
@@ -212,19 +204,7 @@ fun MembersListScreen(onMemberClick: (Member) -> Unit) {
         AddMemberDialog(
             onDismiss = { showAddDialog = false },
             onSave = { name, phone, gender, dob, joinDate ->
-                val newId = (globalMembers.maxOfOrNull { it.id } ?: 0) + 1
-                globalMembers.add(
-                    Member(
-                        id = newId,
-                        name = name,
-                        phone = phone,
-                        gender = gender,
-                        dob = dob,
-                        joinDate = joinDate, // Mock default join date
-                        status = "نشط",
-                        expiryDate = "2025-12-31" // Mock default expiry date
-                    )
-                )
+                onAddMember(name, phone, gender, dob, joinDate)
                 showAddDialog = false
             }
         )
@@ -232,38 +212,26 @@ fun MembersListScreen(onMemberClick: (Member) -> Unit) {
 }
 
 @Composable
-fun MemberItem(member: Member, onClick: () -> Unit) {
-    ElevatedCard(
+fun MemberItem(member: MemberEntity, onClick: () -> Unit) {
+    AppCard(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .clickable { onClick() },
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        onClick = onClick
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = member.name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = "الهاتف: ${member.phone}", style = MaterialTheme.typography.bodyMedium)
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MemberAvatar(name = member.name)
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "الحالة: ${member.status}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (member.status == "نشط") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    text = member.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold
                 )
-                Text(
-                    text = "ينتهي: ${member.expiryDate}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(text = "الهاتف: ${member.phone}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            StatusChip(text = "نشط", status = "نشط")
         }
     }
 }
@@ -271,18 +239,22 @@ fun MemberItem(member: Member, onClick: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MemberDetailsScreen(
-    member: Member,
+    member: MemberEntity,
+    viewModel: MembersViewModel,
     onBack: () -> Unit,
-    onEdit: (Member) -> Unit,
+    onEdit: (MemberEntity) -> Unit,
     onDelete: () -> Unit,
     onShowSchedule: () -> Unit
 ) {
     var showEditDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
+    val subscriptions by viewModel.getMemberSubscriptionsFlow(member.id).collectAsStateWithLifecycle(initialValue = emptyList())
+    val measurements by viewModel.getMemberMeasurementsFlow(member.id).collectAsStateWithLifecycle(initialValue = emptyList())
+
     Scaffold(
         topBar = {
-            androidx.compose.material3.CenterAlignedTopAppBar(
+            CenterAlignedTopAppBar(
                 title = { Text("تفاصيل العضو") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -308,41 +280,40 @@ fun MemberDetailsScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            Text("المعلومات الشخصية", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("الاسم: ${member.name}", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(bottom = 4.dp))
-                    Text("الهاتف: ${member.phone}", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(bottom = 4.dp))
-                    Text("الجنس: ${member.gender}", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(bottom = 4.dp))
-                    Text("تاريخ الميلاد: ${member.dob}", style = MaterialTheme.typography.bodyLarge)
+            SectionHeader("المعلومات الشخصية")
+            AppCard(modifier = Modifier.padding(bottom = 16.dp)) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        MemberAvatar(name = member.name)
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text(member.name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                            Text(member.phone, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("الجنس: ${member.gender}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 4.dp))
+                    Text("تاريخ الانضمام: ${formatEpochDay(member.joinDate)}", style = MaterialTheme.typography.bodyMedium)
                 }
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Text("الاشتراكات الحالية", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            val memberSubs = globalSubscriptions.filter { it.memberId == member.id }
-            if (memberSubs.isEmpty()) {
-                Text("لا توجد اشتراكات", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SectionHeader("الاشتراكات الحالية")
+            if (subscriptions.isEmpty()) {
+                EmptyState(icon = Icons.Default.Search, title = "لا يوجد اشتراكات", subtitle = "هذا العضو غير مسجل في أي لعبة حالياً.")
             } else {
-                memberSubs.forEach { sub ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(sub.gameName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text("خطة الاشتراك: ${sub.planType} | السعر: $${sub.price}", style = MaterialTheme.typography.bodyMedium)
-                            val statusColor = if (sub.status == "نشط") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                            Text("الحالة: ${sub.status}", style = MaterialTheme.typography.bodyMedium, color = statusColor)
+                subscriptions.forEach { sub ->
+                    AppCard(modifier = Modifier.padding(bottom = 8.dp)) {
+                        Column {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("اشتراك لعبة", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                                StatusChip(text = sub.planType.name, status = "نشط")
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("السعر: $${sub.price}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("${formatEpochDay(sub.startDate)} إلى ${formatEpochDay(sub.endDate)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -350,23 +321,16 @@ fun MemberDetailsScreen(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            Text("جدول التدريب", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+            SectionHeader("جدول التدريب")
+            AppCard {
+                Column {
                     val today = getArabicDayOfWeek(0)
                     val tomorrow = getArabicDayOfWeek(1)
-                    val todaySchedule = globalSchedules.filter { it.memberId == member.id && it.dayOfWeek == today }
-                    val tomorrowSchedule = globalSchedules.filter { it.memberId == member.id && it.dayOfWeek == tomorrow }
-                    
-                    val todayText = if (todaySchedule.isEmpty()) "راحة" else todaySchedule.flatMap { it.trainingNames }.joinToString("، ")
-                    val tomorrowText = if (tomorrowSchedule.isEmpty()) "راحة" else tomorrowSchedule.flatMap { it.trainingNames }.joinToString("، ")
 
-                    Text("اليوم ($today): $todayText", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    Text("غداً ($tomorrow): $tomorrowText", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("اليوم ($today): ألعاب مسجلة", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("غداً ($tomorrow): ألعاب مسجلة", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(16.dp))
                     Button(onClick = onShowSchedule, modifier = Modifier.fillMaxWidth()) {
                         Text("إدارة الجدول وعرض التفاصيل")
                     }
@@ -380,7 +344,9 @@ fun MemberDetailsScreen(
             member = member,
             onDismiss = { showEditDialog = false },
             onSave = { name, phone, gender, dob, joinDate ->
-                onEdit(member.copy(name = name, phone = phone, gender = gender, dob = dob, joinDate = joinDate))
+                val birthEpoch = if (dob.isBlank()) null else parseEpochDay(dob)
+                val joinEpoch = if (joinDate.isBlank()) member.joinDate else parseEpochDay(joinDate)
+                onEdit(member.copy(name = name, phone = phone, gender = gender, birthDate = birthEpoch, joinDate = joinEpoch))
                 showEditDialog = false
             }
         )
@@ -412,7 +378,7 @@ fun AddMemberDialog(
     var phone by remember { mutableStateOf("") }
     var gender by remember { mutableStateOf("ذكر") }
     var dob by remember { mutableStateOf("") }
-    var joinDate by remember { mutableStateOf(getCurrentDate()) }
+    var joinDate by remember { mutableStateOf(formatEpochDay(TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis()))) }
     var showError by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -433,6 +399,7 @@ fun AddMemberDialog(
                     onValueChange = { name = it; showError = false },
                     label = { Text("الاسم الكامل *") },
                     singleLine = true,
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
@@ -442,6 +409,7 @@ fun AddMemberDialog(
                     onValueChange = { phone = it; showError = false },
                     label = { Text("رقم الهاتف *") },
                     singleLine = true,
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
@@ -506,15 +474,15 @@ fun AddMemberDialog(
 
 @Composable
 fun EditMemberDialog(
-    member: Member,
+    member: MemberEntity,
     onDismiss: () -> Unit,
     onSave: (name: String, phone: String, gender: String, dob: String, joinDate: String) -> Unit
 ) {
     var name by remember { mutableStateOf(member.name) }
     var phone by remember { mutableStateOf(member.phone) }
     var gender by remember { mutableStateOf(member.gender.ifEmpty { "ذكر" }) }
-    var dob by remember { mutableStateOf(member.dob) }
-    var joinDate by remember { mutableStateOf(member.joinDate) }
+    var dob by remember { mutableStateOf(formatEpochDay(member.birthDate)) }
+    var joinDate by remember { mutableStateOf(formatEpochDay(member.joinDate)) }
     var showError by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -535,6 +503,7 @@ fun EditMemberDialog(
                     onValueChange = { name = it; showError = false },
                     label = { Text("الاسم الكامل *") },
                     singleLine = true,
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
@@ -544,6 +513,7 @@ fun EditMemberDialog(
                     onValueChange = { phone = it; showError = false },
                     label = { Text("رقم الهاتف *") },
                     singleLine = true,
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
@@ -609,16 +579,9 @@ fun EditMemberDialog(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TrainingScheduleScreen(
-    member: Member,
+    member: MemberEntity,
     onBack: () -> Unit
 ) {
-    val memberSubs = globalSubscriptions.filter { it.memberId == member.id }
-    val availableTypes = memberSubs.mapNotNull { sub -> globalGames.find { it.name == sub.gameName } }
-        .flatMap { game -> globalTrainings.filter { it.gameId == game.id }.map { it.name } }
-        .distinct()
-        .ifEmpty { listOf("تدريب عام") }
-    val options = availableTypes + listOf("راحة")
-    
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -629,39 +592,9 @@ fun TrainingScheduleScreen(
     ) { padding ->
         LazyColumn(modifier = Modifier.padding(padding).fillMaxSize()) {
             items(daysOfWeekArabic) { day ->
-                var expanded by remember { mutableStateOf(false) }
-                
-                // Get existing schedule for this day
-                val existingSchedule = globalSchedules.find { it.memberId == member.id && it.dayOfWeek == day }
-                val currentType = existingSchedule?.trainingNames?.firstOrNull() ?: "راحة"
-                
                 Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(day, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    Box {
-                        OutlinedButton(onClick = { expanded = true }) { Text(currentType) }
-                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                            options.forEach { opt ->
-                                DropdownMenuItem(
-                                    text = { Text(opt) }, 
-                                    onClick = { 
-                                        if (existingSchedule != null) {
-                                            val index = globalSchedules.indexOf(existingSchedule)
-                                            if (opt == "راحة") {
-                                                globalSchedules.removeAt(index)
-                                            } else {
-                                                globalSchedules[index] = existingSchedule.copy(trainingNames = listOf(opt))
-                                            }
-                                        } else if (opt != "راحة") {
-                                            val newId = (globalSchedules.maxOfOrNull { it.id } ?: 0) + 1
-                                            // Assigning default gameId = 1 for simplicity since this is a quick mock integration
-                                            globalSchedules.add(TrainingSchedule(newId, member.id, 1, day, listOf(opt)))
-                                        }
-                                        expanded = false 
-                                    }
-                                )
-                            }
-                        }
-                    }
+                    Text("تدريب مجدول", color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -672,10 +605,6 @@ fun TrainingScheduleScreen(
 @Composable
 fun MembersScreenPreview() {
     SimpleCalcTheme {
-        CompositionLocalProvider(
-            LocalLayoutDirection provides LayoutDirection.Rtl
-        ) {
-            MembersScreen()
-        }
+        MembersScreen()
     }
 }
