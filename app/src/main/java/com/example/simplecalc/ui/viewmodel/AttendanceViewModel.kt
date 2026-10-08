@@ -62,6 +62,12 @@ class AttendanceViewModel(
         (now / dayMillis) * dayMillis
     }
 
+    init {
+        viewModelScope.launch {
+            attendanceRepository.closeStaleSessions(todayStartMillis)
+        }
+    }
+
     val uiState: StateFlow<AttendanceUiState> = combine(
         attendanceRepository.getTodayAttendanceWithGamesFlow(todayStartMillis),
         memberRepository.getAllActiveFlow(),

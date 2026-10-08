@@ -60,6 +60,7 @@ import com.example.simplecalc.ui.AppViewModelProvider
 import com.example.simplecalc.ui.components.AppCard
 import com.example.simplecalc.ui.components.EmptyState
 import com.example.simplecalc.ui.components.MemberAvatar
+import com.example.simplecalc.ui.components.SearchableMemberDropdown
 import com.example.simplecalc.ui.components.SectionHeader
 import com.example.simplecalc.ui.components.appTextFieldColors
 import com.example.simplecalc.ui.theme.SimpleCalcTheme
@@ -316,7 +317,6 @@ fun AddPaymentDialog(
     onSave: (memberId: Long, subscriptionId: Long, amount: Double, method: PaymentMethod, date: String, notes: String?) -> Unit
 ) {
     var selectedMember by remember { mutableStateOf<MemberEntity?>(null) }
-    var memberMenuExpanded by remember { mutableStateOf(false) }
 
     var selectedSubscription by remember { mutableStateOf<SubscriptionEntity?>(null) }
     var subscriptionMenuExpanded by remember { mutableStateOf(false) }
@@ -344,34 +344,16 @@ fun AddPaymentDialog(
                 }
 
                 // Member Dropdown
-                Box {
-                    OutlinedButton(
-                        onClick = { memberMenuExpanded = true },
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                    ) {
-                        Text(selectedMember?.name ?: "اختر العضو *")
-                    }
-                    DropdownMenu(
-                        expanded = memberMenuExpanded,
-                        onDismissRequest = { memberMenuExpanded = false }
-                    ) {
-                        if (members.isEmpty()) {
-                            DropdownMenuItem(text = { Text("لا يوجد أعضاء") }, onClick = { memberMenuExpanded = false })
-                        } else {
-                            members.forEach { m ->
-                                DropdownMenuItem(
-                                    text = { Text(m.name) },
-                                    onClick = {
-                                        selectedMember = m
-                                        selectedSubscription = null
-                                        memberMenuExpanded = false
-                                        showError = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
+                SearchableMemberDropdown(
+                    members = members,
+                    selectedMember = selectedMember,
+                    onMemberSelected = { 
+                        selectedMember = it
+                        selectedSubscription = null
+                        showError = false
+                    },
+                    modifier = Modifier.padding(vertical = 4.dp).fillMaxWidth()
+                )
 
                 // Subscription Dropdown
                 Box {

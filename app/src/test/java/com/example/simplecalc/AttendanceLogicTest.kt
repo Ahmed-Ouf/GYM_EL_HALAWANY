@@ -77,6 +77,7 @@ class AttendanceLogicTest {
         override fun getAttendanceWithGames(id: Long) = flowOf(null)
         override fun getTodayAttendanceWithGamesFlow(todayStartMillis: Long) = flowOf(emptyList<AttendanceWithGames>())
         override fun getAttendanceForDayWithGames(startOfDayMillis: Long, endOfDayMillis: Long) = flowOf(emptyList<AttendanceWithGames>())
+        override suspend fun getAllOpenSessions(): List<AttendanceEntity> = attendances.filter { it.checkOut == null }
     }
 
     private lateinit var memberDao: FakeMemberDao
@@ -110,16 +111,50 @@ class AttendanceLogicTest {
 
     @Test
     fun testCheckInWhenAlreadyInside_fails() = runBlocking {
-        val attendance1 = AttendanceEntity(memberId = 1L, checkIn = 10000L)
+        val now = System.currentTimeMillis()
+        val attendance1 = AttendanceEntity(memberId = 1L, checkIn = now)
         repository.checkIn(attendance1, listOf(10L))
 
         // Second checkIn attempt without checking out first
-        val attendance2 = AttendanceEntity(memberId = 1L, checkIn = 10500L)
+        val attendance2 = AttendanceEntity(memberId = 1L, checkIn = now + 500L)
         val result = repository.checkIn(attendance2, listOf(10L))
 
         assertTrue(result is OperationResult.Error)
         val err = result as OperationResult.Error
         assertEquals("العضو متواجد بالداخل حالياً.", err.message)
+    }
+
+    @Test
+    fun testCheckInAllowedAfterStaleSession() = runBlocking {
+        val todayStartMillis = System.currentTimeMillis() - (System.currentTimeMillis() % (24 * 60 * 60 * 1000L))
+        val yesterday = todayStartMillis - (24 * 60 * 60 * 1000L)
+        
+        val attendance1 = AttendanceEntity(memberId = 1L, checkIn = yesterday)
+        attendanceDao.insert(attendance1) // insert bypassing checkIn logic to create stale session
+
+        val now = System.currentTimeMillis()
+        val attendance2 = AttendanceEntity(memberId = 1L, checkIn = now)
+        val result = repository.checkIn(attendance2, listOf(10L))
+
+        assertTrue(result is OperationResult.Success)
+        
+        // Verify stale was closed
+        val closedSession = attendanceDao.attendances.find { it.checkIn == yesterday }
+        assertNotNull(closedSession?.checkOut)
+    }
+
+    @Test
+    fun testCloseStaleSessions() = runBlocking {
+        val todayStartMillis = System.currentTimeMillis() - (System.currentTimeMillis() % (24 * 60 * 60 * 1000L))
+        val yesterday = todayStartMillis - (24 * 60 * 60 * 1000L)
+        
+        val attendance1 = AttendanceEntity(memberId = 1L, checkIn = yesterday)
+        attendanceDao.insert(attendance1)
+
+        repository.closeStaleSessions(todayStartMillis)
+
+        val closedSession = attendanceDao.attendances.find { it.checkIn == yesterday }
+        assertNotNull(closedSession?.checkOut)
     }
 
     @Test

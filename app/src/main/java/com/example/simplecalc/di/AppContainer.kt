@@ -146,6 +146,7 @@ class FakeAttendanceRepository : AttendanceRepository {
     override suspend fun getOpenAttendance(memberId: Long): AttendanceEntity? = null
     override suspend fun checkIn(attendance: AttendanceEntity, gameIds: List<Long>): OperationResult<Long> = OperationResult.Success(1L)
     override suspend fun checkOut(attendanceId: Long, checkOutTime: Long) {}
+    override suspend fun closeStaleSessions(todayStartMillis: Long) {}
 }
 
 class FakeTrainingScheduleRepository : TrainingScheduleRepository {

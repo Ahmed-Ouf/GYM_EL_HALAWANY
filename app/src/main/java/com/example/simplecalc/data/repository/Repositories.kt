@@ -195,6 +195,7 @@ interface AttendanceRepository {
     suspend fun getOpenAttendance(memberId: Long): AttendanceEntity?
     suspend fun checkIn(attendance: AttendanceEntity, gameIds: List<Long>): OperationResult<Long>
     suspend fun checkOut(attendanceId: Long, checkOutTime: Long = System.currentTimeMillis())
+    suspend fun closeStaleSessions(todayStartMillis: Long)
 }
 
 class AttendanceRepositoryImpl(
@@ -206,6 +207,24 @@ class AttendanceRepositoryImpl(
 
     override suspend fun getOpenAttendance(memberId: Long): AttendanceEntity? =
         attendanceDao.getOpenForMember(memberId)
+        
+    override suspend fun closeStaleSessions(todayStartMillis: Long) {
+        val openSessions = attendanceDao.getAllOpenSessions()
+        for (session in openSessions) {
+            if (session.checkIn < todayStartMillis) {
+                closeSession(session)
+            }
+        }
+    }
+    
+    private suspend fun closeSession(session: AttendanceEntity) {
+        val endOfDay = session.checkIn - (session.checkIn % (24 * 60 * 60 * 1000L)) + (24 * 60 * 60 * 1000L) - 1
+        var checkOut = session.checkIn + (3 * 60 * 60 * 1000L)
+        if (checkOut > endOfDay) {
+            checkOut = endOfDay
+        }
+        attendanceDao.updateCheckOut(session.id, checkOut)
+    }
 
     override suspend fun checkIn(attendance: AttendanceEntity, gameIds: List<Long>): OperationResult<Long> {
         val member = memberDao.getByIdDirect(attendance.memberId)
@@ -214,7 +233,12 @@ class AttendanceRepositoryImpl(
         }
         val open = attendanceDao.getOpenForMember(attendance.memberId)
         if (open != null) {
-            return OperationResult.Error("العضو متواجد بالداخل حالياً.")
+            val todayStartMillis = System.currentTimeMillis() - (System.currentTimeMillis() % (24 * 60 * 60 * 1000L))
+            if (open.checkIn < todayStartMillis) {
+                closeSession(open)
+            } else {
+                return OperationResult.Error("العضو متواجد بالداخل حالياً.")
+            }
         }
         val attendanceId = attendanceDao.insert(attendance)
         val refs = gameIds.map { gameId -> AttendanceGameCrossRef(attendanceId, gameId) }
@@ -250,7 +274,7 @@ class TrainingScheduleRepositoryImpl(private val trainingScheduleDao: TrainingSc
         trainingTypeIds: List<Long?>,
         dayOfWeek: Int
     ) {
-        trainingScheduleDao.deleteForMemberAndGame(memberId, gameId)
+        trainingScheduleDao.deleteForMemberGameAndDay(memberId, gameId, dayOfWeek)
         val entities = trainingTypeIds.map { typeId ->
             TrainingScheduleEntity(
                 memberId = memberId,

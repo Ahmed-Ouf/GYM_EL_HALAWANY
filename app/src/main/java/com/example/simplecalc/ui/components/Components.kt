@@ -42,6 +42,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.simplecalc.ui.theme.SimpleCalcTheme
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.layout.heightIn
+import com.example.simplecalc.data.local.entity.MemberEntity
 
 @Composable
 fun appTextFieldColors() = OutlinedTextFieldDefaults.colors(
@@ -256,9 +266,10 @@ fun StatCard(
     value: String,
     label: String,
     accentColor: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
-    AppCard(modifier = modifier) {
+    AppCard(modifier = modifier, onClick = onClick) {
         Column(
             horizontalAlignment = Alignment.Start,
             modifier = Modifier.fillMaxWidth()
@@ -419,6 +430,89 @@ fun SectionHeader(
         if (actionLabel != null && onAction != null) {
             TextButton(onClick = onAction) {
                 Text(text = actionLabel, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SearchableMemberDropdown(
+    members: List<MemberEntity>,
+    selectedMember: MemberEntity?,
+    onMemberSelected: (MemberEntity?) -> Unit,
+    modifier: Modifier = Modifier,
+    label: String = "اختر العضو *"
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf(selectedMember?.name ?: "") }
+    
+    LaunchedEffect(selectedMember) {
+        if (selectedMember != null) {
+            searchQuery = selectedMember.name
+        }
+    }
+
+    val filteredMembers = remember(searchQuery, members) {
+        if (searchQuery.isBlank()) members
+        else members.filter { 
+            it.name.contains(searchQuery, ignoreCase = true) || 
+            it.phone.contains(searchQuery, ignoreCase = true) 
+        }
+    }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = modifier
+    ) {
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = {
+                searchQuery = it
+                expanded = true
+                if (selectedMember != null && it != selectedMember.name) {
+                    onMemberSelected(null)
+                }
+            },
+            label = { Text(label) },
+            modifier = Modifier.menuAnchor().fillMaxWidth(),
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+            singleLine = true
+        )
+        
+        if (filteredMembers.isNotEmpty()) {
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.heightIn(max = 250.dp)
+            ) {
+                filteredMembers.forEach { member ->
+                    DropdownMenuItem(
+                        text = { 
+                            Column {
+                                Text(member.name, style = MaterialTheme.typography.bodyLarge)
+                                Text(member.phone, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        },
+                        onClick = {
+                            searchQuery = member.name
+                            onMemberSelected(member)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        } else if (expanded && searchQuery.isNotBlank()) {
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("لا توجد نتائج", color = MaterialTheme.colorScheme.error) },
+                    onClick = { expanded = false }
+                )
             }
         }
     }

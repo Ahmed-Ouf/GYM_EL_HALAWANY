@@ -42,7 +42,7 @@ import kotlinx.coroutines.launch
         MemberMeasurementEntity::class
     ],
     version = 1,
-    exportSchema = false
+    exportSchema = true
 )
 @TypeConverters(Converters::class)
 abstract class GymDatabase : RoomDatabase() {

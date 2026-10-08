@@ -261,9 +261,12 @@ fun MemberDetailsScreen(
     val todayCal = Calendar.getInstance()
     val todayDayOfWeek = todayCal.get(Calendar.DAY_OF_WEEK) // 1=Sun, 2=Mon...
     val tomorrowDayOfWeek = if (todayDayOfWeek == 7) 1 else todayDayOfWeek + 1
+    
+    val todayEpochDay = TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis())
+    val activeGameIds = subscriptions.filter { it.startDate <= todayEpochDay && it.endDate >= todayEpochDay }.map { it.gameId }.toSet()
 
-    val todaySchedules = schedules.filter { it.dayOfWeek == todayDayOfWeek }
-    val tomorrowSchedules = schedules.filter { it.dayOfWeek == tomorrowDayOfWeek }
+    val todaySchedules = schedules.filter { it.dayOfWeek == todayDayOfWeek && activeGameIds.contains(it.gameId) }
+    val tomorrowSchedules = schedules.filter { it.dayOfWeek == tomorrowDayOfWeek && activeGameIds.contains(it.gameId) }
 
     val todayGameNames = todaySchedules.mapNotNull { sched -> games.find { it.id == sched.gameId }?.name }.distinct()
     val tomorrowGameNames = tomorrowSchedules.mapNotNull { sched -> games.find { it.id == sched.gameId }?.name }.distinct()

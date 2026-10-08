@@ -58,6 +58,7 @@ import com.example.simplecalc.ui.components.AppCard
 import com.example.simplecalc.ui.components.EmptyState
 import com.example.simplecalc.ui.components.GameChip
 import com.example.simplecalc.ui.components.MemberAvatar
+import com.example.simplecalc.ui.components.SearchableMemberDropdown
 import com.example.simplecalc.ui.components.StatCard
 import com.example.simplecalc.ui.components.StatusChip
 import com.example.simplecalc.ui.components.appTextFieldColors
@@ -270,7 +271,6 @@ fun CheckInDialog(
     val scope = rememberCoroutineScope()
 
     var selectedMember by remember { mutableStateOf<MemberEntity?>(null) }
-    var memberMenuExpanded by remember { mutableStateOf(false) }
 
     var suggestedInfo by remember { mutableStateOf<SuggestedGamesInfo?>(null) }
     val selectedGameIds = remember { mutableStateListOf<Long>() }
@@ -313,33 +313,17 @@ fun CheckInDialog(
                 }
 
                 // Member Dropdown
-                Box {
-                    OutlinedButton(
-                        onClick = { memberMenuExpanded = true },
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                    ) {
-                        Text(selectedMember?.name ?: "اختر العضو *")
-                    }
-                    DropdownMenu(
-                        expanded = memberMenuExpanded,
-                        onDismissRequest = { memberMenuExpanded = false }
-                    ) {
-                        if (members.isEmpty()) {
-                            DropdownMenuItem(text = { Text("لا يوجد أعضاء") }, onClick = { memberMenuExpanded = false })
-                        } else {
-                            members.forEach { m ->
-                                DropdownMenuItem(
-                                    text = { Text(m.name) },
-                                    onClick = {
-                                        selectedMember = m
-                                        memberMenuExpanded = false
-                                        errorMessage = null
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
+                SearchableMemberDropdown(
+                    members = members,
+                    selectedMember = selectedMember,
+                    onMemberSelected = { 
+                        selectedMember = it
+                        suggestedInfo = null
+                        selectedGameIds.clear()
+                        errorMessage = null
+                    },
+                    modifier = Modifier.padding(vertical = 4.dp).fillMaxWidth()
+                )
 
                 if (selectedMember != null && suggestedInfo != null) {
                     val info = suggestedInfo!!

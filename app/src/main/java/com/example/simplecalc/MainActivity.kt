@@ -229,7 +229,7 @@ fun GymManagementApp() {
                 label = "ScreenTransition"
             ) { destination ->
                 when (destination) {
-                    GymDestination.Dashboard -> DashboardScreen()
+                    GymDestination.Dashboard -> DashboardScreen(onNavigate = { currentDestination = it })
                     GymDestination.Members -> MembersScreen()
                     GymDestination.Subscriptions -> SubscriptionsScreen()
                     GymDestination.Attendance -> AttendanceScreen()
@@ -252,7 +252,8 @@ fun isExpiringSoon(endDate: String): Boolean {
 
 @Composable
 fun DashboardScreen(
-    viewModel: DashboardViewModel = viewModel(factory = AppViewModelProvider.Factory)
+    viewModel: DashboardViewModel = viewModel(factory = AppViewModelProvider.Factory),
+    onNavigate: (GymDestination) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -300,14 +301,16 @@ fun DashboardScreen(
                 value = "${uiState.totalMembers}",
                 label = "إجمالي الأعضاء",
                 accentColor = AccentPurple,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(GymDestination.Members) }
             )
             StatCard(
                 icon = Icons.Default.CheckCircle,
                 value = "${uiState.activeMembers}",
                 label = "أعضاء نشطين",
                 accentColor = AccentPink,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(GymDestination.Members) }
             )
         }
         Spacer(modifier = Modifier.height(12.dp))
@@ -317,20 +320,22 @@ fun DashboardScreen(
                 value = "${uiState.todayCheckIns}",
                 label = "حضور اليوم",
                 accentColor = AccentBlue,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(GymDestination.Attendance) }
             )
             StatCard(
                 icon = Icons.Default.ShoppingCart,
                 value = "$${uiState.todayPay}",
                 label = "مدفوعات اليوم",
                 accentColor = AccentOrange,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(GymDestination.Admin) }
             )
         }
 
         if (uiState.expSoonCount > 0) {
             Spacer(modifier = Modifier.height(12.dp))
-            AppCard {
+            AppCard(onClick = { onNavigate(GymDestination.Subscriptions) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         Icons.Default.Warning,
@@ -368,7 +373,7 @@ fun DashboardScreen(
         
         Spacer(modifier = Modifier.height(12.dp))
 
-        AppCard {
+        AppCard(onClick = { onNavigate(GymDestination.Subscriptions) }) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly

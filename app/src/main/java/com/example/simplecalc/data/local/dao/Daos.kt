@@ -80,7 +80,7 @@ data class ScheduleWithDetails(
 
 @Dao
 interface MemberDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(member: MemberEntity): Long
 
     @Update
@@ -104,7 +104,7 @@ interface MemberDao {
 
 @Dao
 interface GameDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(game: GameEntity): Long
 
     @Update
@@ -125,7 +125,7 @@ interface GameDao {
 
 @Dao
 interface TrainingTypeDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(trainingType: TrainingTypeEntity): Long
 
     @Query("SELECT * FROM training_types WHERE gameId = :gameId ORDER BY id ASC")
@@ -137,7 +137,7 @@ interface TrainingTypeDao {
 
 @Dao
 interface SubscriptionDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(subscription: SubscriptionEntity): Long
 
     @Update
@@ -199,7 +199,7 @@ interface SubscriptionDao {
 
 @Dao
 interface PaymentDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(payment: PaymentEntity): Long
 
     @Query("SELECT * FROM payments WHERE subscriptionId = :subId ORDER BY date DESC")
@@ -233,13 +233,13 @@ interface PaymentDao {
 
 @Dao
 interface AttendanceDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(attendance: AttendanceEntity): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertCrossRef(crossRef: AttendanceGameCrossRef): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertCrossRefs(crossRefs: List<AttendanceGameCrossRef>): List<Long>
 
     @Query("UPDATE attendances SET checkOut = :checkOut WHERE id = :id")
@@ -247,6 +247,9 @@ interface AttendanceDao {
 
     @Query("SELECT * FROM attendances WHERE memberId = :memberId AND checkOut IS NULL ORDER BY checkIn DESC LIMIT 1")
     suspend fun getOpenForMember(memberId: Long): AttendanceEntity?
+
+    @Query("SELECT * FROM attendances WHERE checkOut IS NULL")
+    suspend fun getAllOpenSessions(): List<AttendanceEntity>
 
     @Query("SELECT * FROM attendances WHERE memberId = :memberId AND checkOut IS NULL ORDER BY checkIn DESC LIMIT 1")
     fun getOpenForMemberFlow(memberId: Long): Flow<AttendanceEntity?>
@@ -269,14 +272,17 @@ interface AttendanceDao {
 
 @Dao
 interface TrainingScheduleDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(schedule: TrainingScheduleEntity): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAll(schedules: List<TrainingScheduleEntity>): List<Long>
 
     @Query("DELETE FROM training_schedules WHERE memberId = :memberId AND gameId = :gameId")
     suspend fun deleteForMemberAndGame(memberId: Long, gameId: Long): Int
+
+    @Query("DELETE FROM training_schedules WHERE memberId = :memberId AND gameId = :gameId AND dayOfWeek = :dayOfWeek")
+    suspend fun deleteForMemberGameAndDay(memberId: Long, gameId: Long, dayOfWeek: Int): Int
 
     @Query("SELECT * FROM training_schedules WHERE memberId = :memberId AND dayOfWeek = :dayOfWeek")
     fun getForMemberAndDay(memberId: Long, dayOfWeek: Int): Flow<List<TrainingScheduleEntity>>
@@ -291,7 +297,7 @@ interface TrainingScheduleDao {
 
 @Dao
 interface MemberMeasurementDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(measurement: MemberMeasurementEntity): Long
 
     @Query("SELECT * FROM member_measurements WHERE memberId = :memberId ORDER BY date ASC")
