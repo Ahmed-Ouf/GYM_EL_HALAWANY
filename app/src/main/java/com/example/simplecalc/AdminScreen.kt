@@ -1,5 +1,6 @@
 package com.example.simplecalc
 
+import android.net.Uri
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -59,6 +60,18 @@ import com.example.simplecalc.ui.components.EmptyState
 import com.example.simplecalc.ui.components.appTextFieldColors
 import com.example.simplecalc.ui.theme.SimpleCalcTheme
 import com.example.simplecalc.ui.viewmodel.AdminViewModel
+import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.ManagedActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import kotlinx.coroutines.launch
+import com.example.simplecalc.data.local.BackupRestoreUtils
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import android.widget.Toast
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.Divider
 
 enum class AdminRoute { Home, GamesList, GameTrainings, TrainingScheduleList, PaymentsList }
 
@@ -116,7 +129,7 @@ fun AdminScreen(
 
 @Composable
 fun AdminHomeScreen(onNavigateToGames: () -> Unit, onNavigateToSchedules: () -> Unit, onNavigateToPayments: () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp).verticalScroll(rememberScrollState())) {
         AppCard(
             modifier = Modifier.padding(vertical = 8.dp),
             onClick = onNavigateToGames
@@ -149,6 +162,94 @@ fun AdminHomeScreen(onNavigateToGames: () -> Unit, onNavigateToSchedules: () -> 
                 Text("عرض وتسجيل المدفوعات.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        BackupRestoreSection()
+    }
+}
+
+@Composable
+fun BackupRestoreSection() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var showConfirmRestore by remember { mutableStateOf(false) }
+    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val result = BackupRestoreUtils.exportDatabase(context, uri)
+                if (result.isSuccess) {
+                    Toast.makeText(context, "تم تصدير النسخة الاحتياطية بنجاح", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(context, "فشل التصدير: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            pendingRestoreUri = uri
+            showConfirmRestore = true
+        }
+    }
+
+    AppCard {
+        Column(modifier = Modifier.padding(8.dp)) {
+            Text("النسخ الاحتياطي والاستعادة", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("يمكنك حفظ نسخة احتياطية من بيانات النادي على جهازك لاستعادتها لاحقاً.", style = MaterialTheme.typography.bodyMedium)
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = {
+                    val dateFormat = SimpleDateFormat("yyyy-MM-dd_HHmm", Locale.US)
+                    val fileName = "backup_${dateFormat.format(Date())}.db"
+                    exportLauncher.launch(fileName)
+                }, modifier = Modifier.weight(1f)) {
+                    Text("تصدير البيانات")
+                }
+                
+                Button(onClick = {
+                    importLauncher.launch(arrayOf("application/octet-stream", "*/*"))
+                }, modifier = Modifier.weight(1f)) {
+                    Text("استعادة البيانات")
+                }
+            }
+        }
+    }
+
+    if (showConfirmRestore) {
+        AlertDialog(
+            onDismissRequest = { showConfirmRestore = false; pendingRestoreUri = null },
+            title = { Text("تأكيد استعادة البيانات") },
+            text = { Text("استعادة النسخة الاحتياطية ستقوم بحذف جميع البيانات الحالية واستبدالها بالبيانات الموجودة في الملف المختار. هل أنت متأكد من المتابعة؟\nسوف يتم إعادة تشغيل التطبيق.") },
+            confirmButton = {
+                Button(onClick = {
+                    showConfirmRestore = false
+                    scope.launch {
+                        pendingRestoreUri?.let { uri ->
+                            val result = BackupRestoreUtils.importDatabase(context, uri)
+                            if (result.isSuccess) {
+                                Toast.makeText(context, "تمت الاستعادة بنجاح. سيتم إعادة تشغيل التطبيق.", Toast.LENGTH_LONG).show()
+                                BackupRestoreUtils.restartApp(context)
+                            } else {
+                                Toast.makeText(context, "فشل الاستعادة: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                        pendingRestoreUri = null
+                    }
+                }) {
+                    Text("نعم، استعادة")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmRestore = false; pendingRestoreUri = null }) {
+                    Text("إلغاء")
+                }
+            }
+        )
     }
 }
 
