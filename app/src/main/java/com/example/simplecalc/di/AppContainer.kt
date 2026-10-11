@@ -143,6 +143,8 @@ class FakePaymentRepository : PaymentRepository {
 class FakeAttendanceRepository : AttendanceRepository {
     override fun getTodayAttendanceWithGamesFlow(todayStartMillis: Long): Flow<List<AttendanceWithGames>> =
         flowOf(emptyList())
+    override fun getAttendanceHistoryForMemberFlow(memberId: Long, limit: Int): Flow<List<AttendanceWithGames>> =
+        flowOf(emptyList())
     override suspend fun getOpenAttendance(memberId: Long): AttendanceEntity? = null
     override suspend fun checkIn(attendance: AttendanceEntity, gameIds: List<Long>): OperationResult<Long> = OperationResult.Success(1L)
     override suspend fun checkOut(attendanceId: Long, checkOutTime: Long) {}

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -67,6 +68,9 @@ import com.example.simplecalc.ui.components.EmptyState
 import com.example.simplecalc.ui.components.MemberAvatar
 import com.example.simplecalc.ui.components.SectionHeader
 import com.example.simplecalc.ui.components.StatusChip
+import com.example.simplecalc.ui.components.formatDateOnly
+import com.example.simplecalc.ui.components.formatTimeOnly
+import androidx.compose.material3.Divider
 import com.example.simplecalc.ui.components.appTextFieldColors
 import com.example.simplecalc.ui.viewmodel.MembersUiState
 import com.example.simplecalc.ui.viewmodel.MembersViewModel
@@ -257,6 +261,8 @@ fun MemberDetailsScreen(
     val subscriptions by viewModel.getMemberSubscriptionsFlow(member.id).collectAsStateWithLifecycle(initialValue = emptyList())
     val schedules by viewModel.getMemberSchedulesFlow(member.id).collectAsStateWithLifecycle(initialValue = emptyList())
     val games by viewModel.getAllActiveGamesFlow().collectAsStateWithLifecycle(initialValue = emptyList())
+    var attendanceLimit by remember { mutableStateOf(5) }
+    val attendanceHistory by viewModel.getMemberAttendanceHistoryFlow(member.id, attendanceLimit).collectAsStateWithLifecycle(initialValue = emptyList())
 
     val todayCal = Calendar.getInstance()
     val todayDayOfWeek = todayCal.get(Calendar.DAY_OF_WEEK) // 1=Sun, 2=Mon...
@@ -357,6 +363,55 @@ fun MemberDetailsScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(onClick = onShowSchedule, modifier = Modifier.fillMaxWidth()) {
                         Text("إدارة الجدول وعرض التفاصيل")
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+            SectionHeader("سجل الحضور والانصراف")
+            if (attendanceHistory.isEmpty()) {
+                EmptyState(
+                    icon = Icons.Default.DateRange,
+                    title = "لا يوجد سجل حضور",
+                    subtitle = "لم يتم تسجيل حضور لهذا العضو حتى الآن."
+                )
+            } else {
+                attendanceHistory.forEach { historyRow ->
+                    AppCard(modifier = Modifier.padding(bottom = 8.dp)) {
+                        Column {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(
+                                    text = formatDateOnly(historyRow.attendance.checkIn),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                val checkOutText = if (historyRow.attendance.checkOut != null) {
+                                    formatTimeOnly(historyRow.attendance.checkOut)
+                                } else "ما زال بالداخل"
+                                Text(
+                                    text = "دخول: ${formatTimeOnly(historyRow.attendance.checkIn)} - خروج: $checkOutText",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (historyRow.games.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                val gameNames = historyRow.games.joinToString(", ") { it.name }
+                                Text(
+                                    text = "الألعاب: $gameNames",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+                if (attendanceHistory.size >= attendanceLimit) {
+                    TextButton(
+                        onClick = { attendanceLimit += 5 },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("عرض المزيد")
                     }
                 }
             }
@@ -613,6 +668,8 @@ fun TrainingScheduleScreen(
 ) {
     val schedules by viewModel.getMemberSchedulesFlow(member.id).collectAsStateWithLifecycle(initialValue = emptyList())
     val games by viewModel.getAllActiveGamesFlow().collectAsStateWithLifecycle(initialValue = emptyList())
+    var attendanceLimit by remember { mutableStateOf(5) }
+    val attendanceHistory by viewModel.getMemberAttendanceHistoryFlow(member.id, attendanceLimit).collectAsStateWithLifecycle(initialValue = emptyList())
 
     var selectedDayIndex by remember { mutableStateOf<Int?>(null) }
 

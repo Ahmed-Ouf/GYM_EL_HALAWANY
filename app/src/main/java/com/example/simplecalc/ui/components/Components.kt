@@ -52,6 +52,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.foundation.layout.heightIn
 import com.example.simplecalc.data.local.entity.MemberEntity
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+fun formatDateTime(millis: Long): String {
+    val formatter = SimpleDateFormat("yyyy-MM-dd hh:mm a", Locale.getDefault())
+    return formatter.format(Date(millis))
+}
+
+fun formatTimeOnly(millis: Long): String {
+    val formatter = SimpleDateFormat("hh:mm a", Locale.getDefault())
+    return formatter.format(Date(millis))
+}
+
+fun formatDateOnly(millis: Long): String {
+    val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    return formatter.format(Date(millis))
+}
 
 @Composable
 fun appTextFieldColors() = OutlinedTextFieldDefaults.colors(

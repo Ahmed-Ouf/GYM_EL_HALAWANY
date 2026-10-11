@@ -90,6 +90,8 @@ class MembersViewModel(
 
     fun getMemberSchedulesFlow(memberId: Long) = scheduleRepository.getForMemberFlow(memberId)
 
+    fun getMemberAttendanceHistoryFlow(memberId: Long, limit: Int) = attendanceRepository.getAttendanceHistoryForMemberFlow(memberId, limit)
+
     fun getAllActiveGamesFlow() = gameRepository.getAllActiveFlow()
 
     fun getTrainingTypesForGameFlow(gameId: Long) = gameRepository.getTrainingTypes(gameId)

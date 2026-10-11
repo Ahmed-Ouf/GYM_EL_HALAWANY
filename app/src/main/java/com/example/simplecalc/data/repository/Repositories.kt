@@ -192,6 +192,7 @@ class PaymentRepositoryImpl(
 
 interface AttendanceRepository {
     fun getTodayAttendanceWithGamesFlow(todayStartMillis: Long): Flow<List<AttendanceWithGames>>
+    fun getAttendanceHistoryForMemberFlow(memberId: Long, limit: Int): Flow<List<AttendanceWithGames>>
     suspend fun getOpenAttendance(memberId: Long): AttendanceEntity?
     suspend fun checkIn(attendance: AttendanceEntity, gameIds: List<Long>): OperationResult<Long>
     suspend fun checkOut(attendanceId: Long, checkOutTime: Long = System.currentTimeMillis())
@@ -204,6 +205,9 @@ class AttendanceRepositoryImpl(
 ) : AttendanceRepository {
     override fun getTodayAttendanceWithGamesFlow(todayStartMillis: Long): Flow<List<AttendanceWithGames>> =
         attendanceDao.getTodayAttendanceWithGamesFlow(todayStartMillis)
+
+    override fun getAttendanceHistoryForMemberFlow(memberId: Long, limit: Int): Flow<List<AttendanceWithGames>> =
+        attendanceDao.getAttendanceHistoryForMember(memberId, limit)
 
     override suspend fun getOpenAttendance(memberId: Long): AttendanceEntity? =
         attendanceDao.getOpenForMember(memberId)

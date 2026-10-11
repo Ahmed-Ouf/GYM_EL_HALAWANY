@@ -268,6 +268,10 @@ interface AttendanceDao {
     @Transaction
     @Query("SELECT * FROM attendances WHERE checkIn >= :startOfDayMillis AND checkIn <= :endOfDayMillis ORDER BY checkIn DESC")
     fun getAttendanceForDayWithGames(startOfDayMillis: Long, endOfDayMillis: Long): Flow<List<AttendanceWithGames>>
+
+    @Transaction
+    @Query("SELECT * FROM attendances WHERE memberId = :memberId ORDER BY checkIn DESC LIMIT :limit")
+    fun getAttendanceHistoryForMember(memberId: Long, limit: Int): Flow<List<AttendanceWithGames>>
 }
 
 @Dao
